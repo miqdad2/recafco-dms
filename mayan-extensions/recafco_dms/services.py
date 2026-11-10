@@ -37,7 +37,8 @@ from .literals import (
     SUMMARY_PAGE_LIMIT
 )
 from .models import (
-    AuditEntry, Category, Department, DocumentClassification, PortalUpload
+    AuditEntry, Category, ConfidentialAccessGroup, Department,
+    DocumentClassification, DocumentResponsibility, PortalUpload
 )
 from .permissions import permission_portal_document_upload
 
@@ -228,8 +229,14 @@ def _metadata_value(document_type, metadata_type, value):
         )
 
 
+def _after_file_stored(document_file):
+    """Test seam: the dev fixture command replaces this to simulate a failure
+    after the file is in storage. Does nothing in normal operation."""
+
+
 def create_document(
-    category, department, document_type, uploaded_file, user, label=None
+    category, department, document_type, uploaded_file, user, label=None,
+    stored_files=None
 ):
     """
     Create a document, its required metadata, its classification, the
@@ -317,6 +324,11 @@ def create_document(
         # Same call Mayan's own upload task makes. Introspection (MIME type,
         # page count) is done by the task chain started below.
         document_file.save(skip_introspection=True)
+        if stored_files is not None:
+            # Lets the caller delete the stored bytes if the transaction
+            # rolls back (see uploads.run_upload).
+            stored_files.append((document_file.file.storage, document_file.file.name))
+        _after_file_stored(document_file)
 
         document_file_id = document_file.pk
         user_id = user.pk
@@ -340,20 +352,48 @@ def create_document(
     return upload
 
 
-def create_portal_upload(category, department, uploaded_file, user, label=None):
-    """The only upload path exposed over HTTP: always the General type."""
-    document_type = get_document_type_general()
+def create_portal_upload(
+    category, department, uploaded_file, user, label=None,
+    confidential_group_id=None, stored_files=None
+):
+    """
+    The only upload path exposed over HTTP.
 
-    AccessControlList.objects.check_access(
-        obj=document_type, permission=permission_portal_document_upload,
-        user=user
-    )
+    - Without a confidential group: the General type, for users with the
+      portal upload ACL.
+    - With a confidential group: that group's own document type, for RECAFCO
+      administrators only. The document is confidential from its first
+      committed moment; it is never visible as general. The administrator
+      does not need to be a member and, if not, cannot open it afterwards.
+    """
+    if confidential_group_id in (None, ''):
+        document_type = get_document_type_general()
+        AccessControlList.objects.check_access(
+            obj=document_type, permission=permission_portal_document_upload,
+            user=user
+        )
+    else:
+        if not is_portal_admin(user=user):
+            raise PermissionDenied
+        group = get_confidential_group(confidential_group_id)
+        document_type = group.document_type
 
     return create_document(
         category=category, department=department,
         document_type=document_type, label=label,
-        uploaded_file=uploaded_file, user=user
+        stored_files=stored_files, uploaded_file=uploaded_file, user=user
     )
+
+
+def get_confidential_group(value, field='confidential_group'):
+    try:
+        return ConfidentialAccessGroup.objects.select_related('document_type').get(
+            pk=int(value)
+        )
+    except (ConfidentialAccessGroup.DoesNotExist, TypeError, ValueError):
+        raise InputRejected(
+            field=field, message='Choose a confidential group from the list.'
+        )
 
 
 # ------------------------------------------------------------ serializing
@@ -391,6 +431,28 @@ def get_classification(document):
         return document.recafco_classification
     except DocumentClassification.DoesNotExist:
         return None
+
+
+def responsible_display(document, upload):
+    """Assigned responsible person, else the original uploader, else None."""
+    try:
+        responsibility = document.recafco_responsibility
+    except DocumentResponsibility.DoesNotExist:
+        responsibility = None
+    if responsibility is not None:
+        return dict(user_display(user=responsibility.person), assigned=True)
+    if upload is not None:
+        return dict(user_display(user=upload.uploader), assigned=False)
+    return None
+
+
+def confidential_group_display(document):
+    """Name of the confidential group (only ever sent to people who can view)."""
+    try:
+        group = document.document_type.recafco_confidential_group
+    except ConfidentialAccessGroup.DoesNotExist:
+        return None
+    return {'id': group.pk, 'name': group.name}
 
 
 def is_confidential(document):
@@ -463,7 +525,10 @@ def serialize_document(document, user):
         'is_mine': bool(upload and upload.uploader_id == user.pk),
         'label': document.label,
         'state': get_processing_state(document=document),
+        # Original uploader: immutable evidence; null when not recorded.
         'uploaded_by': user_display(user=upload.uploader) if upload else None,
+        'responsible': responsible_display(document=document, upload=upload),
+        'confidential_group': confidential_group_display(document=document),
         'version': {
             'id': version.pk,
             'page_count': page_count,
@@ -473,7 +538,9 @@ def serialize_document(document, user):
 
 
 DOCUMENT_RELATED = (
-    'document_type', 'file_latest', 'recafco_portal_upload__uploader',
+    'document_type', 'document_type__recafco_confidential_group',
+    'file_latest', 'recafco_portal_upload__uploader',
+    'recafco_responsibility__person',
     'recafco_classification__department',
     'recafco_classification__category', 'version_active'
 )

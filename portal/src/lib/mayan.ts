@@ -39,7 +39,11 @@ export type DocumentSummary = {
   datetime_created: string;
   is_mine: boolean;
   state: DocumentState;
+  // Original uploader (never changes); null when not recorded.
   uploaded_by: UserRef | null;
+  // Current responsible person: an assigned person, else the original uploader.
+  responsible: (UserRef & { assigned: boolean }) | null;
+  confidential_group: Ref | null;
   file: { id: number; filename: string; size: number | null; mimetype: string | null } | null;
   version: { id: number; page_count: number; page_ids: number[] } | null;
 };
@@ -48,6 +52,7 @@ export type DocumentDetail = DocumentSummary & {
   is_favorite: boolean;
   can_edit_details: boolean;
   editable_department_ids: number[];
+  can_reclassify: boolean;
 };
 
 export type Me = {
@@ -167,7 +172,7 @@ export const getMe = (token: string) => mayanJson<Me>(token, '/recafco/me/');
 
 /** Active departments and categories, for the upload form. */
 export const getOptions = (token: string) =>
-  mayanJson<{ departments: Department[]; categories: Category[] }>(token, '/recafco/options/');
+  mayanJson<{ departments: Department[]; categories: Category[]; confidential_groups: Ref[] }>(token, '/recafco/options/');
 
 async function orNull<T>(call: Promise<T>): Promise<T | null> {
   try {
@@ -283,4 +288,24 @@ export async function searchDocuments(
     `/recafco/documents/?${ids}`,
   );
   return { count: data.count, results: summaries.results };
+}
+
+export type UploadOperation = {
+  operation_id: string;
+  state: 'pending' | 'completed' | 'failed' | 'not_found';
+  filename?: string;
+  document?: { id: number | null; accessible: boolean; label?: string; confidential_group?: Ref | null };
+  errors?: Record<string, string>;
+};
+
+/** What happened to an upload operation (only the user's own). */
+export async function getUploadOperation(token: string, operationId: string): Promise<UploadOperation> {
+  if (!/^[A-Za-z0-9-]{16,64}$/.test(operationId)) return { operation_id: operationId, state: 'not_found' };
+  const response = await mayanRaw(token, `/recafco/uploads/operations/${operationId}/`);
+  if (response.status === 404) return { operation_id: operationId, state: 'not_found' };
+  if (response.status === 401 || response.status === 403) {
+    await checkTokenAfterDenied(token);
+  }
+  if (!response.ok) throw new MayanError(response.status, null);
+  return (await response.json()) as UploadOperation;
 }

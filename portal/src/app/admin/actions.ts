@@ -176,8 +176,31 @@ export async function removeConfidentialMember(id: number, userId: number): Prom
 
 // -------------------------------------------------------------- documents
 
-export async function setDocumentOwner(id: number, _state: FormState, data: FormData): Promise<FormState> {
+export async function setResponsiblePerson(id: number, _state: FormState, data: FormData): Promise<FormState> {
   const userId = Number(text(data, 'user_id'));
   if (!userId) return { errors: { user_id: 'Choose a person.' }, at: Date.now() };
-  return send(`/documents/${id}/owner/`, 'POST', { user_id: userId }, 'The uploader was changed. The change is recorded.');
+  return send(
+    `/documents/${id}/responsible/`,
+    'POST',
+    { user_id: userId },
+    'Responsibility was transferred. The original uploader stays recorded.',
+  );
+}
+
+/**
+ * Make a document confidential (or move it to another group). The extension
+ * requires administrator authority AND current access to the document.
+ * If the administrator is not in the target group, they lose access at once:
+ * go back to the document list.
+ */
+export async function reclassifyDocument(id: number, _state: FormState, data: FormData): Promise<FormState> {
+  const groupId = Number(text(data, 'confidential_group'));
+  if (!groupId) return { errors: { confidential_group: 'Choose a confidential group.' }, at: Date.now() };
+  if (data.get('understood') !== 'on') {
+    return { errors: { understood: 'Tick the box to confirm you understand.' }, at: Date.now() };
+  }
+  const result = await call(`/documents/${id}/reclassify/`, 'POST', { confidential_group: groupId }, 'The document is now confidential.');
+  const body = result.body as { accessible?: boolean } | undefined;
+  if (result.ok && body && body.accessible === false) redirect(`/admin/documents?reclassified=${id}`);
+  return { ok: result.ok, errors: result.errors, at: result.at };
 }

@@ -3,12 +3,12 @@ import { notFound } from 'next/navigation';
 import { updateDetails } from '@/app/documents/[id]/actions';
 import { ActionForm } from '@/components/action-form';
 import { ConfidentialBadge, buttonPrimary, fieldClass, formatDate } from '@/components/ui';
-import { type AdminDocument, adminGet, adminGetOrNull, requireAdmin } from '@/lib/admin';
+import { type AdminDocument, type ConfidentialGroup, adminGet, adminGetOrNull, requireAdmin } from '@/lib/admin';
 import { withMayan } from '@/lib/auth';
 import { getOptions, type UserRef } from '@/lib/mayan';
 import { parseId } from '@/lib/route-helpers';
 import { ActivityList } from '../../activity-list';
-import { setDocumentOwner } from '../../actions';
+import { reclassifyDocument, setResponsiblePerson } from '../../actions';
 import { AdminShell, NotAuthorized } from '../../admin-shell';
 
 export const dynamic = 'force-dynamic';
@@ -19,10 +19,11 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
   if (!allowed) return <NotAuthorized session={session} />;
   const id = parseId((await params).id);
   if (id === null) notFound();
-  const [document, options, users] = await Promise.all([
+  const [document, options, users, groups] = await Promise.all([
     adminGetOrNull<AdminDocument>(session, `/documents/${id}/`),
     withMayan(() => getOptions(session.token)),
     adminGet<{ results: (UserRef & { is_active: boolean })[] }>(session, '/users/choices/'),
+    adminGet<{ results: ConfidentialGroup[] }>(session, '/confidential-groups/'),
   ]);
   if (!document) notFound();
 
@@ -46,7 +47,9 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
             ['Document number', String(document.id)],
             ['Department', document.department],
             ['Category', document.category],
-            ['Uploaded by', document.uploaded_by ? `${document.uploaded_by.full_name} (${document.uploaded_by.username})` : 'Not recorded'],
+            ['Access', document.confidential_group ? `Confidential – ${document.confidential_group.name}` : 'General (all employees)'],
+            ['Originally uploaded by', document.uploaded_by ? `${document.uploaded_by.full_name} (${document.uploaded_by.username})` : 'Not recorded'],
+            ['Responsible person', document.responsible ? `${document.responsible.full_name}${document.responsible.assigned ? '' : ' (the uploader)'}` : 'Not recorded'],
             ['Upload date', formatDate(document.datetime_created)],
             ['File', document.file?.filename ?? null],
           ] as [string, string | null][]
@@ -111,26 +114,26 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
           </ActionForm>
         </section>
 
-        <section aria-labelledby="owner" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
-          <h2 id="owner" className="text-xl font-bold">
-            Uploader (owner)
+        <section aria-labelledby="responsible" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
+          <h2 id="responsible" className="text-xl font-bold">
+            Responsible person
           </h2>
           <p className="mt-1 text-base text-muted">
-            Use this only to correct a mistake, for example a document uploaded on someone else’s behalf. The change is
-            recorded.
+            Who is responsible for this document now, for example after someone leaves. The original uploader
+            {document.uploaded_by ? ` (${document.uploaded_by.full_name})` : ''} stays recorded and never changes.
           </p>
           <ActionForm
-            action={setDocumentOwner.bind(null, document.id)}
+            action={setResponsiblePerson.bind(null, document.id)}
             className="mt-4 flex flex-col gap-4"
-            submit="Change uploader"
+            submit="Transfer responsibility"
             submitClassName={buttonPrimary}
             labels={{ user_id: 'Person' }}
           >
             <div>
-              <label htmlFor="owner-select" className="mb-2 block text-lg font-semibold">
-                Uploaded by
+              <label htmlFor="responsible-select" className="mb-2 block text-lg font-semibold">
+                Responsible person
               </label>
-              <select id="owner-select" name="user_id" defaultValue={document.uploaded_by ? String(document.uploaded_by.id) : ''} required className={fieldClass}>
+              <select id="responsible-select" name="user_id" defaultValue={document.responsible ? String(document.responsible.id) : ''} required className={fieldClass}>
                 <option value="" disabled>
                   Choose a person
                 </option>
@@ -144,6 +147,54 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
           </ActionForm>
         </section>
       </div>
+
+      {document.can_reclassify && groups.results.length > 0 && (
+        <section aria-labelledby="reclassify" className="rounded-2xl border-2 border-ink bg-white p-5 sm:p-6">
+          <h2 id="reclassify" className="text-xl font-bold">
+            {document.confidential_group ? 'Move to another confidential group' : 'Make confidential'}
+          </h2>
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-6 text-base">
+            <li>Only members of the chosen group will be able to find, open or download it, from the moment you save.</li>
+            <li>If you are not a member of that group, you will lose access to it as well.</li>
+            <li>
+              <strong>Copies already downloaded, printed or emailed cannot be recalled.</strong> This only controls access in the
+              document system from now on.
+            </li>
+            <li>Making a confidential document general again is not available.</li>
+          </ul>
+          <ActionForm
+            action={reclassifyDocument.bind(null, document.id)}
+            className="mt-4 flex flex-col gap-4"
+            submit={document.confidential_group ? 'Move to this group' : 'Make confidential'}
+            pendingText="Saving…"
+            submitClassName={buttonPrimary}
+            labels={{ confidential_group: 'Confidential group', understood: 'Confirmation' }}
+            confirm="Restrict this document now? Copies already downloaded cannot be recalled."
+          >
+            <div>
+              <label htmlFor="reclassify-group" className="mb-2 block text-lg font-semibold">
+                Confidential group
+              </label>
+              <select id="reclassify-group" name="confidential_group" defaultValue="" required className={fieldClass}>
+                <option value="" disabled>
+                  Choose the group
+                </option>
+                {groups.results
+                  .filter((group) => group.id !== document.confidential_group?.id)
+                  .map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <label className="flex min-h-12 items-start gap-3 text-lg">
+              <input type="checkbox" name="understood" required className="mt-1 size-6 shrink-0" />
+              I understand that copies already downloaded cannot be recalled.
+            </label>
+          </ActionForm>
+        </section>
+      )}
 
       <section aria-labelledby="history" className="flex flex-col gap-3">
         <h2 id="history" className="text-xl font-bold">

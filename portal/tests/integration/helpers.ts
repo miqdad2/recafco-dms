@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -184,10 +185,17 @@ export type UploadFields = {
   label?: string;
   extra?: Record<string, string>;
   secondFile?: Buffer;
+  /** Upload operation ID. Default: a new random one. null: send none. */
+  operationId?: string | null;
+  confidentialGroup?: number;
 };
+
+export const newOperationId = () => randomBytes(16).toString('hex');
 
 export function uploadForm(fields: UploadFields): FormData {
   const form = new FormData();
+  if (fields.operationId !== null) form.append('operation_id', fields.operationId ?? newOperationId());
+  if (fields.confidentialGroup !== undefined) form.append('confidential_group', String(fields.confidentialGroup));
   if (fields.label !== undefined) form.append('label', fields.label);
   if (fields.department !== undefined) form.append('department', fields.department);
   if (fields.category !== undefined) form.append('category', fields.category);
@@ -201,9 +209,26 @@ export function uploadForm(fields: UploadFields): FormData {
   return form;
 }
 
-/** Upload through the extension directly (as the employee token). */
-export function extensionUpload(token: string, fields: UploadFields) {
-  return api(token, '/recafco/uploads/', { method: 'POST', body: uploadForm(fields) });
+/**
+ * Upload through the extension directly (as the employee token).
+ *
+ * A reused keep-alive connection can be closed by the server side just as a
+ * request is sent ("other side closed"; see docs/unit-3-report.md). Because
+ * every upload carries an operation ID, resending the SAME operation once is
+ * safe: the server returns the first result instead of saving a copy. This
+ * is not a blind retry; without an operation ID nothing is retried.
+ */
+export async function extensionUpload(token: string, fields: UploadFields) {
+  const operationId = fields.operationId === null ? null : (fields.operationId ?? newOperationId());
+  const send = () => api(token, '/recafco/uploads/', { method: 'POST', body: uploadForm({ ...fields, operationId }) });
+  try {
+    return await send();
+  } catch (error) {
+    if (!operationId) throw error;
+    const reason = (error as { cause?: { message?: string } }).cause?.message ?? String(error);
+    console.warn(`upload connection dropped (${reason}); resending operation ${operationId}`);
+    return send();
+  }
 }
 
 export async function waitFor<T>(
@@ -289,7 +314,10 @@ export function portalGet(path: string, session: PortalSession | null) {
 }
 
 export function portalUpload(session: PortalSession | null, fields: UploadFields, origin: string | null = PORTAL) {
+  const operationId = fields.operationId === null ? null : (fields.operationId ?? newOperationId());
+  fields = { ...fields, operationId };
   const headers: Record<string, string> = {};
+  if (operationId) headers['X-Upload-Operation'] = operationId;
   if (session) headers.Cookie = session.cookie;
   if (origin) headers.Origin = origin;
   return fetch(`${PORTAL}/api/upload`, { method: 'POST', body: uploadForm(fields), headers, redirect: 'manual' });

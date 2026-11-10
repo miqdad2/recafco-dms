@@ -25,14 +25,21 @@ from .literals import (
     MY_UPLOADS_DEFAULT_LIMIT, MY_UPLOADS_MAXIMUM_LIMIT, SUMMARY_BATCH_LIMIT,
     UPLOAD_ALLOWED_FIELDS
 )
-from .models import Category, Department, DepartmentAssignment
+from .models import (
+    Category, ConfidentialAccessGroup, Department, DepartmentAssignment,
+    UploadOperation
+)
 from .services import (
-    InputRejected, create_portal_upload, get_accessible_document,
+    InputRejected, confidential_group_display, get_accessible_document,
     get_department_documents, get_departments_for_user,
     get_document_summaries, get_editable_department_ids, get_favorite_ids,
     get_favorites, get_my_uploads, get_upload_options, serialize_category,
     serialize_department, serialize_document, set_favorite,
     update_document_details, user_can_upload
+)
+from .uploads import (
+    OperationConflict, OperationFailed, OperationInProgress, get_operation,
+    run_upload
 )
 
 
@@ -77,6 +84,45 @@ def reject(exception):
     raise ValidationError({exception.field: exception.message})
 
 
+def operation_result(operation, user, replayed):
+    """
+    The saved document as the uploader may see it now. If the uploader
+    cannot open it (an administrator uploading to a confidential group they
+    are not in), only a receipt is returned: no content, no page IDs.
+    """
+    document = operation.document
+    accessible = document is not None and get_accessible_document(
+        user=user, document_id=document.pk
+    )
+    if accessible:
+        data = serialize_document(document=accessible, user=user)
+        data['accessible'] = True
+    elif document is not None:
+        data = {
+            'access': 'confidential',
+            'accessible': False,
+            'confidential_group': confidential_group_display(document=document),
+            'datetime_created': document.datetime_created.isoformat(),
+            'id': document.pk,
+            'label': document.label
+        }
+    else:
+        data = {'accessible': False, 'id': None}
+    data['operation_id'] = operation.operation_id
+    data['replayed'] = replayed
+    return data
+
+
+def operation_error_body(operation):
+    field, separator, message = (operation.error or '').partition(': ')
+    if separator and field in UPLOAD_ALLOWED_FIELDS | {'operation_id'}:
+        return {field: message, 'code': 'operation_failed'}
+    return {
+        'code': 'operation_failed',
+        'detail': 'This upload was not saved. Start a new upload.'
+    }
+
+
 def get_document_or_404(request, document_id):
     document = get_accessible_document(user=request.user, document_id=document_id)
     if document is None:
@@ -90,6 +136,9 @@ def serialize_document_detail(document, user):
     data['is_favorite'] = bool(get_favorite_ids(user=user, document_ids=[document.pk]))
     data['can_edit_details'] = bool(editable)
     data['editable_department_ids'] = sorted(editable)
+    # Reclassifying needs administrator authority AND current access; the
+    # caller already established access by loading the document.
+    data['can_reclassify'] = is_portal_admin(user=user)
     return data
 
 
@@ -118,7 +167,14 @@ class APIPortalMeView(PortalAPIView):
 @extend_schema(exclude=True)
 class APIPortalOptionsView(PortalAPIView):
     def get(self, request):
-        return Response(get_upload_options())
+        options = get_upload_options()
+        # Only administrators may upload confidential documents; they choose
+        # the group explicitly. Others get no group list at all.
+        options['confidential_groups'] = [
+            {'id': group.pk, 'name': group.name}
+            for group in ConfidentialAccessGroup.objects.all()
+        ] if is_portal_admin(user=request.user) else []
+        return Response(options)
 
 
 @extend_schema(exclude=True)
@@ -141,24 +197,71 @@ class APIPortalUploadView(PortalAPIView):
             raise ValidationError({'file': 'Upload one file at a time.'})
 
         try:
-            upload = create_portal_upload(
-                category=request.data.get('category'),
-                department=request.data.get('department'),
-                label=request.data.get('label'),
-                uploaded_file=request.FILES.get('file'),
-                user=request.user
+            operation, created = run_upload(
+                confidential_group_id=request.data.get('confidential_group') or None,
+                fields={
+                    'category': request.data.get('category'),
+                    'department': request.data.get('department'),
+                    'label': request.data.get('label')
+                },
+                operation_id=request.data.get('operation_id'),
+                uploaded_file=request.FILES.get('file'), user=request.user
             )
         except InputRejected as exception:
             reject(exception)
         except DjangoPermissionDenied:
             raise PermissionDenied(
-                'You do not have permission to upload documents.'
+                'You do not have permission to upload documents here.'
+            )
+        except OperationConflict:
+            return Response(
+                {
+                    'code': 'operation_conflict',
+                    'operation_id': 'This upload ID was already used for a different file '
+                    'or different details. Start a new upload.'
+                }, status=status.HTTP_409_CONFLICT
+            )
+        except OperationInProgress:
+            return Response(
+                {'code': 'operation_pending', 'state': 'pending'},
+                status=status.HTTP_202_ACCEPTED
+            )
+        except OperationFailed as exception:
+            return Response(
+                operation_error_body(exception.operation),
+                status=status.HTTP_400_BAD_REQUEST
             )
 
         return Response(
-            serialize_document(document=upload.document, user=request.user),
-            status=status.HTTP_201_CREATED
+            operation_result(operation=operation, user=request.user, replayed=not created),
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )
+
+
+@extend_schema(exclude=True)
+class APIPortalUploadOperationView(PortalAPIView):
+    """
+    Recovery: what happened to an upload whose reply was lost? Only the
+    user who started the operation can see it (404 for anyone else).
+    """
+    def get(self, request, operation_id):
+        operation = get_operation(operation_id=operation_id, user=request.user)
+        if operation is None:
+            # Never received: nothing was saved. Uploading again is safe.
+            return Response(
+                {'operation_id': operation_id, 'state': 'not_found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        body = {
+            'filename': operation.original_filename,
+            'operation_id': operation.operation_id,
+            'state': operation.state
+        }
+        if operation.state == UploadOperation.STATE_COMPLETED:
+            body['document'] = operation_result(operation=operation, user=request.user, replayed=True)
+        elif operation.state == UploadOperation.STATE_FAILED:
+            body['errors'] = operation_error_body(operation)
+        return Response(body)
 
 
 @extend_schema(exclude=True)

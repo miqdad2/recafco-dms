@@ -34,9 +34,11 @@ from .literals import (
     METADATA_TYPE_CATEGORY_NAME, METADATA_TYPE_DEPARTMENT_NAME,
     PASSWORD_MIN_LENGTH, QUERY_MAX_LENGTH
 )
+from mayan.apps.documents.models.document_models import Document
+
 from .models import (
     AuditEntry, Category, ConfidentialAccessGroup, ControllerAssignment,
-    Department, DepartmentAssignment, PortalUpload
+    Department, DepartmentAssignment, DocumentResponsibility, PortalUpload
 )
 from .permission_model import READ_PERMISSIONS
 from .services import (
@@ -551,14 +553,19 @@ def create_confidential_group(actor, name):
 
     with transaction.atomic():
         document_type = DocumentType.objects.create(label=mayan_name)
-        for metadata_name in (
-            METADATA_TYPE_DEPARTMENT_NAME, METADATA_TYPE_CATEGORY_NAME
-        ):
-            DocumentTypeMetadataType.objects.create(
+        # bulk_create: no post_save signal. Mayan's handler would queue a task
+        # (before this transaction commits) to add metadata to existing
+        # documents of the type; a new type has none, and the early task
+        # only logged "DocumentType matching query does not exist".
+        DocumentTypeMetadataType.objects.bulk_create([
+            DocumentTypeMetadataType(
                 document_type=document_type,
                 metadata_type=get_metadata_type(name=metadata_name),
                 required=True
+            ) for metadata_name in (
+                METADATA_TYPE_DEPARTMENT_NAME, METADATA_TYPE_CATEGORY_NAME
             )
+        ])
         role = Role.objects.create(label=mayan_name)
         group = Group.objects.create(name=mayan_name)
         role.groups.add(group)
@@ -616,27 +623,70 @@ def set_confidential_membership(actor, access_group, user, value):
 
 # -------------------------------------------------------------- documents
 
-def set_document_owner(actor, document, user):
-    """Correct the recorded uploader of a document (audited)."""
+def set_responsible_person(actor, document, user):
+    """
+    Transfer responsibility for a document (audited). The original uploader
+    (PortalUpload) is never changed.
+    """
     if is_system_account(user):
         raise InputRejected(field='user_id', message='Choose an employee account.')
     with transaction.atomic():
-        upload = PortalUpload.objects.select_for_update().filter(document=document).first()
-        old = upload.uploader.username if upload else None
-        if upload is None:
-            file_latest = document.file_latest
-            upload = PortalUpload(
-                document=document,
-                original_filename=(file_latest.filename if file_latest else document.label)[:255],
-                size=(file_latest.size or 0) if file_latest else 0
-            )
-        if old == user.username:
+        current = DocumentResponsibility.objects.select_for_update().filter(
+            document=document
+        ).select_related('person').first()
+        upload = PortalUpload.objects.filter(document=document).select_related('uploader').first()
+        before = current.person if current else (upload.uploader if upload else None)
+        if before is not None and before.pk == user.pk:
             return False
-        upload.uploader = user
-        upload.save()
+        DocumentResponsibility.objects.update_or_create(
+            document=document, defaults={'assigned_by': actor, 'person': user}
+        )
         audit(
-            action='document.owner_changed', actor=actor,
-            details={'owner': [old, user.username]}, target=document
+            action='document.responsible_changed', actor=actor,
+            details={'responsible': [before.username if before else None, user.username]},
+            target=document
+        )
+    return True
+
+
+def reclassify_document(actor, document, access_group):
+    """
+    Move a document into a confidential group (from general, or from another
+    group). The caller has checked that `actor` is an administrator AND can
+    currently view the document. Confidential-to-general release is not
+    supported.
+
+    One UPDATE of the document type inside a transaction: before the commit
+    the old audience has access, after it only the new group does. There is
+    no moment in which the document is general or readable by both groups
+    beyond that single switch.
+    """
+    target_type = access_group.document_type
+    if document.document_type_id == target_type.pk:
+        return False
+    needed = {
+        get_metadata_type(name=METADATA_TYPE_DEPARTMENT_NAME).pk,
+        get_metadata_type(name=METADATA_TYPE_CATEGORY_NAME).pk
+    }
+    linked = set(
+        DocumentTypeMetadataType.objects.filter(document_type=target_type).values_list(
+            'metadata_type_id', flat=True
+        )
+    )
+    if not needed <= linked:
+        # Mayan would delete the department/category values. Refuse.
+        raise InputRejected(
+            field='confidential_group',
+            message='This group is not set up correctly. Ask IT to run recafco_setup.'
+        )
+    with transaction.atomic():
+        document = Document.objects.select_for_update().get(pk=document.pk)
+        before = document.document_type.label
+        document._document_type_change(document_type=target_type, user=actor)
+        audit(
+            action='document.reclassified', actor=actor,
+            details={'access': [before, target_type.label], 'group': access_group.name},
+            target=document
         )
     return True
 

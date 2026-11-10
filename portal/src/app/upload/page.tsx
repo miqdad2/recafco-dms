@@ -42,13 +42,16 @@ export default async function UploadPage({ searchParams }: PageProps<'/upload'>)
         </Notice>
       )}
       <p className="max-w-3xl text-lg text-muted">
-        Everyone at RECAFCO who can sign in will be able to find and open this document. Your name and the upload date are
-        shown next to it.
+        {options.confidential_groups.length > 0
+          ? 'Normally everyone at RECAFCO can find and open what you upload. As an administrator you can instead choose one confidential group below. '
+          : 'Everyone at RECAFCO who can sign in will be able to find and open this document. '}
+        Your name and the upload date are shown next to it.
       </p>
       <UploadForm
         departments={options.departments}
         categories={options.categories}
         defaultDepartment={preselected?.name ?? ''}
+        confidentialGroups={options.confidential_groups}
         maxBytes={config.maxUploadBytes}
       />
     </AppShell>

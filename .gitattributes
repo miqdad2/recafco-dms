@@ -1,0 +1,5 @@
+# Keep LF in the repository; shell scripts must stay LF on checkout too
+# (they run inside Linux containers and Git Bash).
+* text=auto eol=lf
+*.sh text eol=lf
+*.png binary

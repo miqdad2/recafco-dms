@@ -4,6 +4,38 @@ Business decisions confirmed by RECAFCO, and the technical decisions that
 follow from them. Newest first. Do not implement anything here as a rule
 unless it is marked **confirmed**.
 
+## 2026-11-10 — Unit 3
+
+### Rules given by RECAFCO for this unit (initial rules)
+
+1. RECAFCO administrators manage confidential groups and membership.
+2. Only administrators may classify a document as confidential or change
+   its confidential group. Confidential upload requires an explicit group.
+3. Department controllers cannot change confidentiality.
+4. Administration privileges alone grant no access to document content. An
+   administrator may upload to a group they are not in, but then cannot
+   open, preview or download the document.
+5. Reclassifying an existing document requires administrator authority
+   **and** current access to that document.
+6. No confidential-to-general release in this unit.
+7. "Originally uploaded by" is immutable; the "responsible person" can be
+   transferred by an administrator.
+
+### Technical decisions
+
+| Decision | Why |
+|---|---|
+| Uploads carry a client-generated operation ID, unique per user. `pending` is committed before any work; `completed` is set in the same transaction that creates the document. | A retry returns the first result; the status can always be told truthfully (completed ⇔ the document exists). |
+| A repeat with different bytes or fields → 409; a refused upload is final for its ID; a `pending` attempt older than 10 minutes is treated as dead and may be taken over. | No silent reuse; no operation stuck forever after a killed worker (Gunicorn kills requests after 120 s). |
+| Concurrent repeats wait (up to 45 s) for the first attempt and return its result. | Exactly one document for any number of parallel retries. |
+| Files written to storage by a rolled-back upload are deleted. | No orphaned bytes. |
+| The portal never resends an upload. If its connection to Mayan drops, it asks for the operation status instead. The browser keeps the ID and offers "Check whether it was saved". | A dropped connection can follow a commit (proved with a proxy test); a blind retry could duplicate. |
+| Confidential upload creates the document directly in the group's document type. Reclassification is one UPDATE of the document type in a transaction. | No moment of general visibility. |
+| Reclassification checks that the target type links both RECAFCO metadata types before switching. | Mayan's type-change handler would otherwise delete department/category values. |
+| Unit 2's "change uploader" overwrote the original uploader. Migration 0004 restores originals from the audit log and moves the transfer to `DocumentResponsibility`; where the log shows no original (a record Unit 2 created), the record is removed and the uploader shows "Not recorded". | Never invent an original uploader. |
+| Portal sessions in an SQLite file (built-in `node:sqlite`, no new dependency). Session IDs stored as SHA-256; Mayan tokens encrypted with AES-256-GCM (`PORTAL_SESSION_KEY`). | Survive restarts; shared by every portal process on the server; a copy of the file reveals no cookie or token. |
+| `@types/node` raised from 20 to 24. | Matches the Node 24 runtime (needed for `node:sqlite` types). |
+
 ## 2026-11-10 — Unit 2
 
 ### Confirmed by RECAFCO (in the Unit 2 session)

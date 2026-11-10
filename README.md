@@ -16,10 +16,10 @@ uses an admin account for employee requests.
 | Isolated development stack | `deploy/dev/compose.yaml` |
 | Permission model | `docs/permission-model.md` |
 | Decisions (confirmed by RECAFCO, and technical) | `docs/decisions.md` |
-| Unit reports (results, gaps) | `docs/unit-1-report.md`, `docs/unit-2-report.md` |
-| Screenshots | `docs/screenshots/unit-2/` |
+| Unit reports (results, gaps) | `docs/unit-1-report.md`, `docs/unit-2-report.md`, `docs/unit-3-report.md` |
+| Screenshots | `docs/screenshots/unit-2/`, `docs/screenshots/unit-3/` |
 
-Status: **Unit 2 (department navigation and administration), development only.** Not deployed.
+Status: **Unit 3 (upload reliability, confidential documents, durable sessions), development only.** Not deployed.
 
 ## Run it locally (Windows, Docker Desktop, Node 24, Git Bash)
 
@@ -83,6 +83,7 @@ Screenshots (portal running on 127.0.0.1:3107, Microsoft Edge installed):
 
 ```sh
 node scripts/screenshots.mjs docs/screenshots/unit-2
+node scripts/screenshots-unit3.mjs docs/screenshots/unit-3   # confidential upload, upload recovery
 ```
 
 The integration tests reset the four dev users, create test documents in the
@@ -97,6 +98,8 @@ dev stack, temporarily disable or remove a dev user, and restore them.
 | `PORTAL_SESSION_ABSOLUTE_HOURS` | 8 | Sign out after this long regardless |
 | `PORTAL_MAX_UPLOAD_MB` | 50 | Largest accepted upload |
 | `PORTAL_COOKIE_SECURE` | `true` in production builds | `Secure` flag on the session cookie |
+| `PORTAL_SESSION_KEY` | — (required) | 64 hex characters. Encrypts Mayan tokens in the session database. Keep secret; changing it signs everyone out |
+| `PORTAL_SESSION_DB` | `portal/.data/sessions.sqlite` | Session database (SQLite). Back it up with the server; it holds only hashed session IDs and encrypted tokens |
 
 ## Stopping or removing the dev stack
 

@@ -8,8 +8,7 @@ import { request } from 'node:http';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   type ApiResult, DEPARTMENTS, MAYAN, RUN, api, binary, dev, extensionUpload, makePdf, sleep,
-  tokenFor, waitFor, waitReady,
-} from './helpers';
+  tokenFor, waitFor, waitReady, newOperationId } from './helpers';
 
 type Found = {
   count: number;
@@ -108,8 +107,10 @@ describe('rejected uploads leave nothing behind', () => {
 describe('interrupted uploads leave nothing behind', () => {
   it('a connection dropped halfway through the file creates no document', async () => {
     const label = `CUT-${RUN}`;
+    const operationId = newOperationId();
     const boundary = `----recafco${RUN}`;
     const head = [
+      `--${boundary}`, 'Content-Disposition: form-data; name="operation_id"', '', operationId,
       `--${boundary}`, 'Content-Disposition: form-data; name="label"', '', label,
       `--${boundary}`, 'Content-Disposition: form-data; name="department"', '', DEPARTMENTS.finance,
       `--${boundary}`, 'Content-Disposition: form-data; name="category"', '', 'Invoice',
@@ -138,6 +139,12 @@ describe('interrupted uploads leave nothing behind', () => {
     });
 
     await sleep(5000);
+    // Django drops the incomplete file part but keeps the text fields, so the
+    // request can reach the upload view as an upload WITHOUT a file. It must
+    // then be refused: the operation (if recorded) is failed, never completed.
+    const operation = dev<{ count: number; states: string[]; documents: (number | null)[] }>('operation', 'dev_employee_a', operationId);
+    expect(operation.states.every((state) => state === 'failed')).toBe(true);
+    expect(operation.documents.every((id) => id === null)).toBe(true);
     expect(dev<Found>('find-label', label).count).toBe(0);
   });
 });

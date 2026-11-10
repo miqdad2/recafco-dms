@@ -38,6 +38,75 @@ class PortalUpload(models.Model):
     def __str__(self):
         return '{} ({})'.format(self.original_filename, self.uploader)
 
+    def save(self, *args, **kwargs):
+        # The original uploader is evidence and never changes. Transfers of
+        # responsibility use DocumentResponsibility instead.
+        if self.pk:
+            stored = PortalUpload.objects.filter(pk=self.pk).values_list(
+                'uploader_id', 'document_id'
+            ).first()
+            if stored and stored != (self.uploader_id, self.document_id):
+                raise ValueError('The original uploader of a document cannot change.')
+        super().save(*args, **kwargs)
+
+
+class DocumentResponsibility(models.Model):
+    """
+    The person currently responsible for a document, when an administrator
+    has assigned one. Without a row, the original uploader is responsible.
+    """
+    document = models.OneToOneField(
+        on_delete=models.CASCADE, related_name='recafco_responsibility',
+        to='documents.Document'
+    )
+    person = models.ForeignKey(
+        on_delete=models.PROTECT, related_name='recafco_responsible_for',
+        to=settings.AUTH_USER_MODEL
+    )
+    assigned_by = models.ForeignKey(
+        null=True, on_delete=models.PROTECT,
+        related_name='recafco_responsibilities_assigned',
+        to=settings.AUTH_USER_MODEL
+    )
+    datetime_assigned = models.DateTimeField(auto_now=True)
+
+
+class UploadOperation(models.Model):
+    """
+    One upload attempt identified by the client (`operation_id`), scoped to
+    the user. Makes uploads idempotent: a retry of the same operation returns
+    the document saved the first time instead of creating a copy.
+
+    State is committed in two steps: `pending` is recorded before any work,
+    and `completed` is set in the same transaction that creates the document,
+    so `completed` is true exactly when the document exists.
+    """
+    STATE_PENDING = 'pending'
+    STATE_COMPLETED = 'completed'
+    STATE_FAILED = 'failed'
+
+    user = models.ForeignKey(
+        on_delete=models.PROTECT, related_name='recafco_upload_operations',
+        to=settings.AUTH_USER_MODEL
+    )
+    operation_id = models.CharField(max_length=64)
+    # SHA-256 of the file bytes and every submitted field.
+    fingerprint = models.CharField(max_length=64)
+    state = models.CharField(db_index=True, max_length=16)
+    # Random token of the request currently doing the work.
+    attempt = models.CharField(max_length=32)
+    document = models.ForeignKey(
+        null=True, on_delete=models.SET_NULL,
+        related_name='recafco_upload_operations', to='documents.Document'
+    )
+    original_filename = models.CharField(blank=True, max_length=255)
+    error = models.TextField(blank=True)
+    datetime_created = models.DateTimeField(auto_now_add=True)
+    datetime_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'operation_id')
+
 
 class Department(models.Model):
     """

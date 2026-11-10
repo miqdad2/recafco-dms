@@ -8,7 +8,7 @@ from .api_views import (
     APIPortalDocumentDetailView, APIPortalDocumentFavoriteView,
     APIPortalDocumentSummaryListView, APIPortalFavoritesView, APIPortalMeView,
     APIPortalMyUploadsView, APIPortalOptionsView, APIPortalTokenRevokeView,
-    APIPortalUploadView
+    APIPortalUploadOperationView, APIPortalUploadView
 )
 
 urlpatterns = []
@@ -27,6 +27,11 @@ api_urls = [
     re_path(
         route=r'^recafco/uploads/$', name='recafco-portal-upload',
         view=APIPortalUploadView.as_view()
+    ),
+    re_path(
+        route=r'^recafco/uploads/operations/(?P<operation_id>[A-Za-z0-9-]{1,64})/$',
+        name='recafco-portal-upload-operation',
+        view=APIPortalUploadOperationView.as_view()
     ),
     re_path(
         route=r'^recafco/uploads/mine/$', name='recafco-portal-my-uploads',
@@ -148,9 +153,14 @@ api_urls = [
         view=admin.APIAdminDocumentDetailView.as_view()
     ),
     re_path(
-        route=r'^recafco/admin/documents/{}/owner/$'.format(ID.format('document_id')),
-        name='recafco-admin-document-owner',
-        view=admin.APIAdminDocumentOwnerView.as_view()
+        route=r'^recafco/admin/documents/{}/responsible/$'.format(ID.format('document_id')),
+        name='recafco-admin-document-responsible',
+        view=admin.APIAdminDocumentResponsibleView.as_view()
+    ),
+    re_path(
+        route=r'^recafco/admin/documents/{}/reclassify/$'.format(ID.format('document_id')),
+        name='recafco-admin-document-reclassify',
+        view=admin.APIAdminDocumentReclassifyView.as_view()
     ),
     re_path(
         route=r'^recafco/admin/audit/$', name='recafco-admin-audit',

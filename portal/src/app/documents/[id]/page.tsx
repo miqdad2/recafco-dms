@@ -41,8 +41,10 @@ export default async function DocumentPage({ params, searchParams }: PageProps<'
   const details: [string, string | null][] = [
     ['Department', document.department],
     ['Category', document.category],
-    ['Uploaded by', document.uploaded_by?.full_name ?? null],
+    ['Access', document.confidential_group ? `Confidential – ${document.confidential_group.name}` : 'General (all employees)'],
+    ['Originally uploaded by', document.uploaded_by?.full_name ?? 'Not recorded'],
     ['Upload date', formatDate(document.datetime_created)],
+    ['Responsible person', document.responsible?.assigned ? document.responsible.full_name : null],
     ['File', document.file ? [document.file.filename, formatSize(document.file.size)].filter(Boolean).join(' · ') : null],
     ['Type', document.file ? fileType(document.file) : null],
   ];

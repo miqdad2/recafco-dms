@@ -42,4 +42,32 @@
   activity log).
 - Tests and screenshots: see `docs/unit-2-report.md`.
 
-Next unit: not started. Waiting for review and RECAFCO decisions (see report).
+## Unit 3 — Upload reliability and confidential documents (2026-11-10) — done, awaiting review
+
+Completed
+- Idempotent uploads: user-scoped operation IDs (required), replay of the
+  first result, 409 on reuse with different content, concurrent retries →
+  one document, dead attempts taken over, stored files of failed uploads
+  deleted, recovery status endpoint and upload-page recovery states.
+- Confidential handling: administrator-only confidential upload to an
+  explicit group; reclassification needs admin authority and current access;
+  no release to general; immediate loss of access everywhere, including
+  existing sessions; downloaded-copies warning.
+- Original uploader immutable; responsibility transfer replaces Unit 2's
+  overwrite; migration 0004 restored 3 overwritten dev documents from the
+  audit log.
+- Sessions were in memory → now durable (SQLite, hashed IDs, encrypted
+  tokens), tested across processes and restarts.
+- Intermittent write failure investigated: dropped before processing on a
+  reused keep-alive connection (evidence in report); targeted proxy test for
+  drops before processing and after commit.
+- Tests: 10/10 unit, 159/159 integration (final full run).
+
+Remaining gaps (explicit; details in docs/unit-3-report.md)
+- RECAFCO decisions: release to general; administrators adding themselves to
+  groups; real departments, categories and memberships.
+- Exact trigger of the keep-alive drop not isolated; portal HTTP client
+  keep-alive not shortened (would need the undici package).
+- Upload operation retention/cleanup; multi-server session store.
+
+Next unit: not started. Waiting for review.

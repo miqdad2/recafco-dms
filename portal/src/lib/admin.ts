@@ -93,5 +93,7 @@ export const ACTION_TEXT: Record<string, string> = {
   'confidential_group.member_added': 'added a member to',
   'confidential_group.member_removed': 'removed a member from',
   'document.details_changed': 'corrected the details of',
-  'document.owner_changed': 'changed the uploader of',
+  'document.owner_changed': 'changed the uploader of (before Unit 3; the original uploader was restored and this became a responsibility transfer)',
+  'document.responsible_changed': 'transferred responsibility for',
+  'document.reclassified': 'made confidential',
 };

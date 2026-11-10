@@ -1,4 +1,5 @@
 import 'server-only';
+import path from 'node:path';
 
 function number(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -16,7 +17,25 @@ function mayanUrl(): string {
   return value.replace(/\/+$/, '');
 }
 
+function sessionKey(): Buffer {
+  const value = process.env.PORTAL_SESSION_KEY ?? '';
+  if (!/^[0-9a-f]{64}$/i.test(value)) {
+    throw new Error('PORTAL_SESSION_KEY must be 64 hex characters (32 random bytes). Run scripts/dev-env.mjs in development.');
+  }
+  return Buffer.from(value, 'hex');
+}
+
+let cachedKey: Buffer | null = null;
+
 export const config = {
+  /** SQLite file holding portal sessions (durable across restarts). */
+  get sessionDbPath() {
+    return process.env.PORTAL_SESSION_DB || path.join(process.cwd(), '.data', 'sessions.sqlite');
+  },
+  /** Encrypts Mayan tokens at rest in the session database. */
+  get sessionKey() {
+    return (cachedKey ??= sessionKey());
+  },
   get mayanApiUrl() {
     return `${mayanUrl()}/api/v4`;
   },

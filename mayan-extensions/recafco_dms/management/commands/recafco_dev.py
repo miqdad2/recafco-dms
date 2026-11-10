@@ -101,6 +101,24 @@ class Command(BaseCommand):
         subparsers.add_parser(
             'superuser-id', help='ID of one Mayan superuser, or null.'
         )
+        sub = subparsers.add_parser(
+            'upload-fail-after-store',
+            help='Run an upload that fails after its file is in storage; report cleanup.'
+        )
+        sub.add_argument('--label', required=True)
+        subparsers.add_parser(
+            'orphan-files',
+            help='Count stored document files that no document file record uses.'
+        )
+        sub = subparsers.add_parser('operation', help='Show an upload operation.')
+        sub.add_argument('username')
+        sub.add_argument('operation_id')
+        sub = subparsers.add_parser(
+            'operation-make-stale',
+            help='Make an operation look like a request whose worker died 20 minutes ago.'
+        )
+        sub.add_argument('username')
+        sub.add_argument('operation_id')
 
         sub = subparsers.add_parser(
             'find-label',
@@ -220,6 +238,86 @@ class Command(BaseCommand):
     def do_document_type(self, options):
         document = Document.objects.get(pk=options['document_id'])
         return {'document_type': document.document_type.label}
+
+    def do_upload_fail_after_store(self, options):
+        from ... import services, uploads
+        captured = []
+
+        def fail_after_store(document_file):
+            captured.append((document_file.file.storage, document_file.file.name))
+            raise RuntimeError('Simulated failure after the file was stored.')
+
+        choices = get_upload_options()
+        original = services._after_file_stored
+        services._after_file_stored = fail_after_store
+        operation_id = 'devfail-' + options['label'].lower().replace('_', '-')[:40]
+        try:
+            uploads.run_upload(
+                fields={
+                    'category': choices['categories'][0]['name'],
+                    'department': choices['departments'][0]['name'],
+                    'label': options['label']
+                },
+                operation_id=operation_id,
+                uploaded_file=SimpleUploadedFile(
+                    content=make_pdf(text=options['label']),
+                    content_type='application/pdf', name='fail.pdf'
+                ),
+                user=self.get_user('dev_employee_a')
+            )
+            raised = False
+        except RuntimeError:
+            raised = True
+        finally:
+            services._after_file_stored = original
+        storage, name = captured[0]
+        from ...models import UploadOperation
+        return {
+            'documents_with_label': Document.objects.filter(label=options['label']).count(),
+            'failure_raised': raised,
+            'file_was_stored': bool(name),
+            'file_exists_after_rollback': storage.exists(name),
+            'operation_state': UploadOperation.objects.get(
+                operation_id=operation_id, user__username='dev_employee_a'
+            ).state
+        }
+
+    def do_orphan_files(self, options):
+        from mayan.apps.documents.models.document_file_models import DocumentFile
+        from mayan.apps.storage.classes import DefinedStorage
+        lazy = DocumentFile._meta.get_field('file').storage
+        storage = DefinedStorage.get(name=lazy.name).get_storage_instance()
+        used = set(DocumentFile.objects.values_list('file', flat=True))
+        directories, files = storage.listdir('')
+        stored = set(files)
+        return {
+            'orphans': len(stored - used), 'stored': len(stored),
+            'subdirectories': len(directories)
+        }
+
+    def do_operation_make_stale(self, options):
+        import datetime
+        from django.utils import timezone
+        from ...models import UploadOperation
+        updated = UploadOperation.objects.filter(
+            document__isnull=True, operation_id=options['operation_id'],
+            user__username=options['username']
+        ).update(
+            datetime_updated=timezone.now() - datetime.timedelta(minutes=20),
+            error='', state=UploadOperation.STATE_PENDING
+        )
+        return {'updated': updated}
+
+    def do_operation(self, options):
+        from ...models import UploadOperation
+        operations = UploadOperation.objects.filter(
+            operation_id=options['operation_id'], user__username=options['username']
+        )
+        return {
+            'count': operations.count(),
+            'documents': [operation.document_id for operation in operations],
+            'states': [operation.state for operation in operations]
+        }
 
     def do_superuser_id(self, options):
         user = get_user_model().objects.filter(is_superuser=True).order_by('pk').first()

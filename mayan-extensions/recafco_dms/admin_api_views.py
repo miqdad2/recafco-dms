@@ -24,7 +24,8 @@ from .admin_services import (
     list_departments, list_users, manageable_users, paginate,
     rename_confidential_group, reorder_departments,
     serialize_confidential_group, serialize_user,
-    set_confidential_membership, set_document_owner, set_user_password,
+    reclassify_document, set_confidential_membership, set_responsible_person,
+    set_user_password,
     update_category, update_department, update_user
 )
 from .api_views import (
@@ -40,7 +41,8 @@ from .models import (
     Department
 )
 from .services import (
-    DOCUMENT_RELATED, InputRejected, get_accessible_documents,
+    DOCUMENT_RELATED, InputRejected, get_accessible_document,
+    get_accessible_documents, get_confidential_group,
     serialize_audit_entry, serialize_category, serialize_department,
     serialize_document, user_display
 )
@@ -404,7 +406,8 @@ class APIAdminDocumentDetailView(AdminAPIView):
 
 
 @extend_schema(exclude=True)
-class APIAdminDocumentOwnerView(AdminAPIView):
+class APIAdminDocumentResponsibleView(AdminAPIView):
+    """Transfer responsibility. The original uploader never changes."""
     allowed_fields = frozenset(('user_id',))
 
     def post(self, request, document_id):
@@ -414,11 +417,44 @@ class APIAdminDocumentOwnerView(AdminAPIView):
         if user is None:
             raise ValidationError({'user_id': 'Choose a user from the list.'})
         try:
-            set_document_owner(actor=request.user, document=document, user=user)
+            set_responsible_person(actor=request.user, document=document, user=user)
         except InputRejected as exception:
             reject(exception)
         document.refresh_from_db()
         return Response(serialize_document_detail(document=document, user=request.user))
+
+
+@extend_schema(exclude=True)
+class APIAdminDocumentReclassifyView(AdminAPIView):
+    """
+    Make a document confidential (or move it to another confidential group).
+    Requires administrator authority (IsPortalAdmin) AND current access to the
+    document (404 otherwise). Confidential-to-general is not offered.
+    """
+    allowed_fields = frozenset(('confidential_group',))
+
+    def post(self, request, document_id):
+        self.check_fields(request)
+        document = get_document_or_404(request=request, document_id=document_id)
+        group_id = body_value(request.data, 'confidential_group', int)
+        if group_id is None:
+            raise ValidationError({'confidential_group': 'Choose a confidential group.'})
+        try:
+            group = get_confidential_group(group_id)
+            changed = reclassify_document(
+                access_group=group, actor=request.user, document=document
+            )
+        except InputRejected as exception:
+            reject(exception)
+        accessible = get_accessible_document(user=request.user, document_id=document.pk)
+        return Response(
+            {
+                'accessible': bool(accessible),
+                'changed': changed,
+                'confidential_group': {'id': group.pk, 'name': group.name},
+                'id': document.pk
+            }
+        )
 
 
 # ------------------------------------------------------------------ audit

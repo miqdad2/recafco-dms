@@ -1,16 +1,20 @@
 import 'server-only';
-import { createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { config } from './config';
 
 /**
- * Server-side session store. The browser only ever holds an opaque random
- * session ID; the Mayan token stays here.
+ * Durable server-side session store (SQLite file on the portal server).
  *
- * Unit 1 keeps sessions in process memory: restarting the portal signs
- * everyone out, and it supports exactly one portal process. A shared store
- * (e.g. Redis) is required before running more than one instance.
- * Keys are SHA-256 hashes of the session ID, so a memory dump does not
- * reveal usable cookie values.
+ * - The browser only holds an opaque random session ID. The database stores
+ *   its SHA-256 hash, so a copy of the file does not contain usable cookies.
+ * - The Mayan token is encrypted with AES-256-GCM using PORTAL_SESSION_KEY
+ *   (kept outside the database). The token hash is stored separately so all
+ *   sessions using one token can be ended together.
+ * - Sessions survive a portal restart and are shared by every portal process
+ *   on the same server. Idle and absolute expiry are enforced on every read.
  */
 export type Session = {
   token: string;
@@ -22,41 +26,95 @@ export type Session = {
   isAdmin: boolean;
   createdAt: number;
   lastSeenAt: number;
+  /** Internal: hash of the session ID (database key). */
+  key?: string;
 };
 
-type Store = Map<string, Session>;
-
-const globalStore = globalThis as unknown as {
-  __recafcoSessions?: Store;
-  __recafcoSweep?: NodeJS.Timeout;
+type Row = {
+  key: string;
+  token_enc: Uint8Array;
+  username: string;
+  full_name: string;
+  can_upload: number;
+  is_admin: number;
+  created_at: number;
+  last_seen_at: number;
 };
-const store: Store = (globalStore.__recafcoSessions ??= new Map());
 
-const hash = (id: string) => createHash('sha256').update(id).digest('hex');
+// Write the idle timestamp at most this often per session.
+const TOUCH_WRITE_INTERVAL_MS = 15_000;
 
-function isExpired(session: Session, now: number): boolean {
-  return (
-    now - session.lastSeenAt > config.sessionIdleMs ||
-    now - session.createdAt > config.sessionAbsoluteMs
-  );
+const hash = (value: string) => createHash('sha256').update(value).digest('hex');
+
+const globalStore = globalThis as unknown as { __recafcoSessionDb?: DatabaseSync; __recafcoSweep?: NodeJS.Timeout };
+
+function db(): DatabaseSync {
+  if (globalStore.__recafcoSessionDb) return globalStore.__recafcoSessionDb;
+  mkdirSync(dirname(config.sessionDbPath), { recursive: true });
+  const database = new DatabaseSync(config.sessionDbPath);
+  database.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA busy_timeout = 5000;
+    CREATE TABLE IF NOT EXISTS sessions (
+      key TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL,
+      token_enc BLOB NOT NULL,
+      username TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      can_upload INTEGER NOT NULL,
+      is_admin INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      last_seen_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS sessions_token_hash ON sessions (token_hash);
+    CREATE INDEX IF NOT EXISTS sessions_last_seen ON sessions (last_seen_at);
+  `);
+  globalStore.__recafcoSessionDb = database;
+  if (!globalStore.__recafcoSweep) {
+    globalStore.__recafcoSweep = setInterval(sweep, 60_000);
+    globalStore.__recafcoSweep.unref();
+  }
+  return database;
 }
 
-if (!globalStore.__recafcoSweep) {
-  globalStore.__recafcoSweep = setInterval(() => {
-    const now = Date.now();
-    for (const [key, session] of store) {
-      if (isExpired(session, now)) store.delete(key);
-    }
-  }, 60_000);
-  globalStore.__recafcoSweep.unref();
+function encrypt(token: string): Uint8Array {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', config.sessionKey, iv);
+  const body = Buffer.concat([cipher.update(token, 'utf8'), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), body]);
 }
 
-export function createSession(
-  data: Omit<Session, 'createdAt' | 'lastSeenAt'>,
-): string {
+function decrypt(data: Uint8Array): string | null {
+  try {
+    const buffer = Buffer.from(data);
+    const decipher = createDecipheriv('aes-256-gcm', config.sessionKey, buffer.subarray(0, 12));
+    decipher.setAuthTag(buffer.subarray(12, 28));
+    return Buffer.concat([decipher.update(buffer.subarray(28)), decipher.final()]).toString('utf8');
+  } catch {
+    return null; // wrong key or tampered row
+  }
+}
+
+function isExpired(row: { created_at: number; last_seen_at: number }, now: number): boolean {
+  return now - row.last_seen_at > config.sessionIdleMs || now - row.created_at > config.sessionAbsoluteMs;
+}
+
+export function sweep(): void {
+  const now = Date.now();
+  db()
+    .prepare('DELETE FROM sessions WHERE last_seen_at < ? OR created_at < ?')
+    .run(now - config.sessionIdleMs, now - config.sessionAbsoluteMs);
+}
+
+export function createSession(data: Omit<Session, 'createdAt' | 'lastSeenAt' | 'key'>): string {
   const id = randomBytes(32).toString('base64url');
   const now = Date.now();
-  store.set(hash(id), { ...data, createdAt: now, lastSeenAt: now });
+  db()
+    .prepare(
+      `INSERT INTO sessions (key, token_hash, token_enc, username, full_name, can_upload, is_admin, created_at, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(hash(id), hash(data.token), encrypt(data.token), data.username, data.fullName, data.canUpload ? 1 : 0, data.isAdmin ? 1 : 0, now, now);
   return id;
 }
 
@@ -64,28 +122,47 @@ export function createSession(
 export function touchSession(id: string | undefined): Session | null {
   if (!id || id.length > 100) return null;
   const key = hash(id);
-  const session = store.get(key);
-  if (!session) return null;
+  const row = db().prepare('SELECT * FROM sessions WHERE key = ?').get(key) as Row | undefined;
+  if (!row) return null;
   const now = Date.now();
-  if (isExpired(session, now)) {
-    store.delete(key);
+  const token = decrypt(row.token_enc);
+  if (isExpired(row, now) || token === null) {
+    db().prepare('DELETE FROM sessions WHERE key = ?').run(key);
     return null;
   }
-  session.lastSeenAt = now;
-  return session;
+  if (now - row.last_seen_at > TOUCH_WRITE_INTERVAL_MS) {
+    db().prepare('UPDATE sessions SET last_seen_at = ? WHERE key = ?').run(now, key);
+  }
+  return {
+    key,
+    token,
+    username: row.username,
+    fullName: row.full_name,
+    canUpload: row.can_upload === 1,
+    isAdmin: row.is_admin === 1,
+    createdAt: row.created_at,
+    lastSeenAt: now,
+  };
+}
+
+/** Persists the display flags after roles were re-read from Mayan. */
+export function updateSessionFlags(session: Session, flags: { canUpload: boolean; isAdmin: boolean }): void {
+  session.canUpload = flags.canUpload;
+  session.isAdmin = flags.isAdmin;
+  if (!session.key) return;
+  db()
+    .prepare('UPDATE sessions SET can_upload = ?, is_admin = ? WHERE key = ?')
+    .run(flags.canUpload ? 1 : 0, flags.isAdmin ? 1 : 0, session.key);
 }
 
 export function deleteSession(id: string | undefined): Session | null {
-  if (!id) return null;
-  const key = hash(id);
-  const session = store.get(key) ?? null;
-  store.delete(key);
+  if (!id || id.length > 100) return null;
+  const session = touchSession(id);
+  db().prepare('DELETE FROM sessions WHERE key = ?').run(hash(id));
   return session;
 }
 
-/** Ends every portal session holding this Mayan token. */
+/** Ends every portal session holding this Mayan token (all processes). */
 export function deleteSessionsForToken(token: string): void {
-  for (const [key, session] of store) {
-    if (session.token === token) store.delete(key);
-  }
+  db().prepare('DELETE FROM sessions WHERE token_hash = ?').run(hash(token));
 }

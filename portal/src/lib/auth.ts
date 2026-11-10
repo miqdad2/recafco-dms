@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { SESSION_COOKIE } from './config';
 import { getMe, type Me, SessionEndedError } from './mayan';
-import { type Session, touchSession } from './session-store';
+import { type Session, touchSession, updateSessionFlags } from './session-store';
 
 export async function getSession(): Promise<Session | null> {
   const store = await cookies();
@@ -37,7 +37,6 @@ export async function withMayan<T>(call: () => Promise<T>): Promise<T> {
  */
 export async function refreshRoles(session: Session): Promise<Me> {
   const me = await withMayan(() => getMe(session.token));
-  session.canUpload = me.can_upload;
-  session.isAdmin = me.is_admin;
+  updateSessionFlags(session, { canUpload: me.can_upload, isAdmin: me.is_admin });
   return me;
 }

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Icon } from '@/components/icons';
-import { ConfidentialBadge, Pagination, buttonPrimary, fieldClass, formatDay } from '@/components/ui';
+import { ConfidentialBadge, Notice, Pagination, buttonPrimary, fieldClass, formatDay } from '@/components/ui';
 import { adminGet, requireAdmin } from '@/lib/admin';
 import type { DocumentSummary, Page } from '@/lib/mayan';
 import { AdminShell, NotAuthorized, adminTable, adminTd, adminTh } from '../admin-shell';
@@ -14,10 +14,17 @@ export default async function AdminDocumentsPage({ searchParams }: PageProps<'/a
   const params = await searchParams;
   const q = String(params.q ?? '').trim().slice(0, 200);
   const page = Math.max(1, Math.min(10000, Number(params.page) || 1));
+  const reclassified = /^[0-9]{1,12}$/.test(String(params.reclassified ?? '')) ? String(params.reclassified) : null;
   const data = await adminGet<Page<DocumentSummary>>(session, `/documents/?${new URLSearchParams({ q, page: String(page) })}`);
 
   return (
     <AdminShell session={session} section="documents" title="Documents" crumbs={[{ label: 'Documents' }]}>
+      {reclassified && (
+        <Notice tone="ok" role="status">
+          Document {reclassified} is now confidential. You are not a member of its group, so you can no longer open it and
+          it is no longer listed here.
+        </Notice>
+      )}
       <p className="text-lg text-muted">
         Correct a document’s title, department, category or uploader. Only documents you are allowed to open are listed:
         confidential documents appear only if you are a member of their group.

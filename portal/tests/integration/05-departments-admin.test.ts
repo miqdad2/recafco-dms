@@ -374,15 +374,18 @@ describe('RECAFCO administration', () => {
     expect(choices.map((user) => user.id)).not.toContain(info.id);
   });
 
-  it('changes the recorded uploader, with history', async () => {
-    const result = await json(tD, `/recafco/admin/documents/${ids.a1}/owner/`, 'POST', { user_id: userIdB });
+  it('transfers responsibility, with history; the original uploader never changes', async () => {
+    const result = await json(tD, `/recafco/admin/documents/${ids.a1}/responsible/`, 'POST', { user_id: userIdB });
     expect(result.status).toBe(200);
-    expect(result.body.uploaded_by.username).toBe(users.b.username);
+    expect(result.body.uploaded_by.username).toBe(users.a.username);
+    expect(result.body.responsible).toMatchObject({ username: users.b.username, assigned: true });
     const detail = (await api(tD, `/recafco/admin/documents/${ids.a1}/`)).body;
     const actions = detail.history.map((entry: { action: string }) => entry.action);
-    expect(actions).toEqual(expect.arrayContaining(['document.owner_changed', 'document.details_changed']));
-    // The original uploader no longer sees it in My uploads; the new owner does.
-    expect((await api(tB, '/recafco/uploads/mine/')).body.results.map((doc: Doc) => doc.id)).toContain(ids.a1);
+    expect(actions).toEqual(expect.arrayContaining(['document.responsible_changed', 'document.details_changed']));
+    // My uploads is about who uploaded: still the original uploader's.
+    expect((await api(tA, '/recafco/uploads/mine/')).body.results.map((doc: Doc) => doc.id)).toContain(ids.a1);
+    // The old endpoint that overwrote the uploader no longer exists.
+    expect((await json(tD, `/recafco/admin/documents/${ids.a1}/owner/`, 'POST', { user_id: userIdB })).status).toBe(404);
   });
 
   it('administrators still cannot open confidential documents of groups they are not in', async () => {
@@ -429,7 +432,8 @@ describe('non-administrators are refused', () => {
     ['/recafco/admin/confidential-groups/1/members/', 'POST', { user_id: 1, is_member: true }],
     ['/recafco/admin/documents/', 'GET'],
     ['/recafco/admin/documents/1/', 'GET'],
-    ['/recafco/admin/documents/1/owner/', 'POST', { user_id: 1 }],
+    ['/recafco/admin/documents/1/responsible/', 'POST', { user_id: 1 }],
+    ['/recafco/admin/documents/1/reclassify/', 'POST', { confidential_group: 1 }],
     ['/recafco/admin/audit/', 'GET'],
   ];
 

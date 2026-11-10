@@ -39,7 +39,10 @@ CONFIDENTIAL_GROUP_NAME_MAX_LENGTH = 60
 # Form fields accepted by the portal upload endpoint. Anything else is
 # rejected so that a client cannot smuggle in a document type, a user, or
 # any other attribute.
-UPLOAD_ALLOWED_FIELDS = frozenset(('category', 'department', 'file', 'label'))
+UPLOAD_ALLOWED_FIELDS = frozenset((
+    'category', 'confidential_group', 'department', 'file', 'label',
+    'operation_id'
+))
 
 LABEL_MAX_LENGTH = 255
 
@@ -80,6 +83,13 @@ FAVORITES_LIMIT = 100
 QUERY_MAX_LENGTH = 200
 
 PASSWORD_MIN_LENGTH = 10
+
+# Upload operations (see uploads.py). A pending operation older than this
+# is a dead attempt (Gunicorn kills a request after 120 s), so a retry may
+# take it over.
+UPLOAD_OPERATION_STALE_SECONDS = 600
+# How long a repeated request waits for a concurrent attempt to finish.
+UPLOAD_OPERATION_WAIT_SECONDS = 45
 
 ROLE_EMPLOYEE = 'employee'
 ROLE_ADMINISTRATOR = 'administrator'

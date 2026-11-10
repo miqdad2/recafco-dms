@@ -98,8 +98,34 @@ Department cards, counts, lists, department search and previews all start from
 `AccessControlList.restrict_queryset(document_view, user)` and only then filter
 by department. A department is a label for organizing documents.
 
+## Unit 3 additions: classifying documents as confidential
+
+| Action | Who | Checked by | Also requires |
+|---|---|---|---|
+| Upload a new confidential document | RECAFCO administrators only | Extension (`is_portal_admin`) | An explicit group. Membership is **not** required. |
+| Make an existing document confidential, or move it to another group | RECAFCO administrators only | Extension (`IsPortalAdmin`) | **Current access** to the document (Mayan ACL view), else 404 |
+| Release a confidential document to general | Nobody (not built) | — | — |
+| Correct title/category/department | Administrators; Department controllers in their departments | Extension | Cannot change confidentiality (field refused) |
+
+- A confidential upload is created directly in the group's document type in
+  the upload transaction: it is never committed as general.
+- Reclassification is one update of the document type inside a transaction.
+  Before the commit the old audience can see it, after the commit only the
+  new group can. Every later request is checked live by Mayan, so search,
+  department counts, favorites, previews, downloads and **existing portal
+  sessions** lose access at once (tested).
+- **Copies already downloaded, printed or forwarded before a document was
+  restricted cannot be recalled.** Restricting only controls access inside the
+  document system from that moment on. The portal says this before the
+  administrator confirms.
+- An administrator who uploads to, or reclassifies into, a group they are not
+  in cannot open the document afterwards. Administrators can add themselves to
+  a group (they manage membership); that change is recorded in the activity
+  log.
+
 ## Not yet decided (needs RECAFCO)
 
-- How documents get into a confidential group: confidential upload screen, or
-  moving a general document to a group (changes its document type). Not built.
+- Releasing a confidential document back to general (and who may do it).
 - Who should be in each confidential group (the dev users are samples).
+- Whether administrators should be prevented from adding themselves to groups
+  (today: allowed and audited).
