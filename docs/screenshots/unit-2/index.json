@@ -1,0 +1,146 @@
+[
+  {
+    "name": "01-home-desktop",
+    "path": "/",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "02-home-mobile",
+    "path": "/",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "03-department-desktop",
+    "path": "/departments/1",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "04-department-mobile",
+    "path": "/departments/1",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "05-department-search-desktop",
+    "path": "/departments/1?q=journey",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "06-upload-preselected-desktop",
+    "path": "/upload?department=1",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "07-upload-preselected-mobile",
+    "path": "/upload?department=1",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "08-document-desktop",
+    "path": "/documents/97",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "09-document-mobile",
+    "path": "/documents/97",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "10-search-all-desktop",
+    "path": "/search?q=journey",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "11-favorites-desktop",
+    "path": "/favorites",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "12-admin-refused-employee-desktop",
+    "path": "/admin",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "20-admin-overview-desktop",
+    "path": "/admin",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "21-admin-overview-mobile",
+    "path": "/admin",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "22-admin-departments-desktop",
+    "path": "/admin/departments",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "23-admin-categories-desktop",
+    "path": "/admin/categories",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "24-admin-users-desktop",
+    "path": "/admin/users",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "25-admin-users-mobile",
+    "path": "/admin/users",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "26-admin-user-new-desktop",
+    "path": "/admin/users/new",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "27-admin-confidential-groups-desktop",
+    "path": "/admin/confidential-groups",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "28-admin-documents-desktop",
+    "path": "/admin/documents",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "29-admin-activity-desktop",
+    "path": "/admin/activity",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "30-admin-user-edit-desktop",
+    "path": "/admin/users/3",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "31-admin-confidential-group-desktop",
+    "path": "/admin/confidential-groups/1",
+    "width": 1440,
+    "horizontalScroll": false
+  }
+]

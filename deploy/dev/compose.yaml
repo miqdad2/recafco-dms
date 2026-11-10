@@ -1,0 +1,101 @@
+# RECAFCO DMS - isolated DEVELOPMENT stack for integration tests.
+#
+# Separate Compose project name, network, volumes and port from the existing
+# Mayan installation ("mayan" project on port 80). Nothing here touches it.
+# Mayan listens on 127.0.0.1 only. Secrets come from deploy/dev/.env, which
+# scripts/dev-env.mjs generates and git ignores.
+#
+# Never use this file on the company server: it enables dev fixtures.
+
+name: recafco-dms-dev
+
+services:
+  postgresql:
+    image: postgres:15.17
+    environment:
+      POSTGRES_DB: mayan
+      POSTGRES_USER: mayan
+      POSTGRES_PASSWORD: ${RECAFCO_DEV_DB_PASSWORD:?Run "node scripts/dev-env.mjs" first}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=mayan --dbname=mayan"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+    restart: unless-stopped
+    volumes:
+      - postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.4.8
+    command:
+      - redis-server
+      - --requirepass
+      - ${RECAFCO_DEV_REDIS_PASSWORD}
+      - --databases
+      - "8"
+      - --maxmemory-policy
+      - noeviction
+    environment:
+      REDISCLI_AUTH: ${RECAFCO_DEV_REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 256m
+    restart: unless-stopped
+    volumes:
+      - redis:/data
+
+  app:
+    image: mayanedms/mayanedms:s4.12
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DJANGO_SETTINGS_MODULE: mayan.settings.production
+      MAYAN_ALLOWED_HOSTS: "['localhost', '127.0.0.1']"
+      MAYAN_CELERY_BROKER_URL: redis://:${RECAFCO_DEV_REDIS_PASSWORD}@redis:6379/0
+      MAYAN_CELERY_RESULT_BACKEND: redis://:${RECAFCO_DEV_REDIS_PASSWORD}@redis:6379/1
+      MAYAN_COMMON_EXTRA_APPS: "['recafco_dms.apps.RecafcoDmsApp']"
+      MAYAN_DATABASES: "{'default':{'ENGINE':'django.db.backends.postgresql','NAME':'mayan','PASSWORD':'${RECAFCO_DEV_DB_PASSWORD}','USER':'mayan','HOST':'postgresql','PORT':'5432'}}"
+      MAYAN_LOCK_MANAGER_BACKEND: mayan.apps.lock_manager.backends.redis_lock.RedisLock
+      MAYAN_LOCK_MANAGER_BACKEND_ARGUMENTS: "{'redis_url':'redis://:${RECAFCO_DEV_REDIS_PASSWORD}@redis:6379/2'}"
+      MAYAN_SERVER_SIDE_EVENTS_BACKEND: mayan.apps.server_side_events.sse_backends.redis.RedisServerEventStreamBackend
+      MAYAN_SERVER_SIDE_EVENTS_BACKEND_ARGUMENTS: "{'url':'redis://:${RECAFCO_DEV_REDIS_PASSWORD}@redis:6379/3'}"
+      # Keep the dev stack small so it cannot starve the existing installation.
+      MAYAN_GUNICORN_WORKERS: "2"
+      MAYAN_WORKER_A_CONCURRENCY: "1"
+      MAYAN_WORKER_B_CONCURRENCY: "1"
+      MAYAN_WORKER_C_CONCURRENCY: "1"
+      MAYAN_WORKER_D_CONCURRENCY: "1"
+      MAYAN_WORKER_E_CONCURRENCY: "1"
+      # Dev fixtures (recafco_dev command) and test user passwords.
+      RECAFCO_DEV_FIXTURES: "1"
+      RECAFCO_DEV_PASSWORD_EMPLOYEE_A: ${RECAFCO_DEV_PASSWORD_EMPLOYEE_A}
+      RECAFCO_DEV_PASSWORD_EMPLOYEE_B: ${RECAFCO_DEV_PASSWORD_EMPLOYEE_B}
+      RECAFCO_DEV_PASSWORD_CONTROLLER: ${RECAFCO_DEV_PASSWORD_CONTROLLER}
+      RECAFCO_DEV_PASSWORD_ADMIN: ${RECAFCO_DEV_PASSWORD_ADMIN}
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mayan-edms/bin/python -c \"import sys,urllib.request; r=urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5); sys.exit(0 if r.status<400 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    mem_limit: 2560m
+    ports:
+      - "127.0.0.1:${RECAFCO_DEV_MAYAN_PORT:-8091}:8000"
+    restart: unless-stopped
+    volumes:
+      - app:/var/lib/mayan
+      # The extension, mounted as an importable package. Mayan core is the
+      # unmodified image.
+      - ../../mayan-extensions/recafco_dms:/opt/mayan-edms/lib/python3.13/site-packages/recafco_dms
+
+volumes:
+  app:
+  postgres:
+  redis:
