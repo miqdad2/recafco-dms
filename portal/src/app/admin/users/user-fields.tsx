@@ -12,26 +12,26 @@ export function UserFields({ departments, user }: { departments: AdminDepartment
     <>
       <div className="grid gap-4 md:grid-cols-2">
         <div>
-          <label htmlFor="first_name" className="mb-2 block text-lg font-semibold">
+          <label htmlFor="first_name" className="mb-1.5 block text-base font-semibold">
             First name
           </label>
           <input id="first_name" name="first_name" defaultValue={user?.first_name} maxLength={150} className={fieldClass} />
         </div>
         <div>
-          <label htmlFor="last_name" className="mb-2 block text-lg font-semibold">
+          <label htmlFor="last_name" className="mb-1.5 block text-base font-semibold">
             Last name
           </label>
           <input id="last_name" name="last_name" defaultValue={user?.last_name} maxLength={150} className={fieldClass} />
         </div>
         <div className="md:col-span-2">
-          <label htmlFor="email" className="mb-2 block text-lg font-semibold">
+          <label htmlFor="email" className="mb-1.5 block text-base font-semibold">
             Email <span className="font-normal text-muted">(optional)</span>
           </label>
           <input id="email" name="email" type="email" defaultValue={user?.email} className={fieldClass} />
         </div>
       </div>
 
-      <fieldset className="rounded-xl border border-line p-4">
+      <fieldset className="rounded-lg border border-line p-4">
         <legend className="px-1 text-lg font-semibold">Roles</legend>
         <label className="flex min-h-12 items-start gap-3 text-lg">
           <input type="checkbox" name="is_employee" defaultChecked={user ? user.is_employee : true} className="mt-1 size-6 shrink-0" />
@@ -50,7 +50,7 @@ export function UserFields({ departments, user }: { departments: AdminDepartment
         </label>
       </fieldset>
 
-      <fieldset className="rounded-xl border border-line p-4">
+      <fieldset className="rounded-lg border border-line p-4">
         <legend className="px-1 text-lg font-semibold">Department</legend>
         <p className="mb-2 text-base text-muted">Where this person works. It does not limit what they can open or where they can upload.</p>
         <div className="grid gap-1 sm:grid-cols-2">
@@ -66,7 +66,7 @@ export function UserFields({ departments, user }: { departments: AdminDepartment
         </div>
       </fieldset>
 
-      <fieldset className="rounded-xl border border-line p-4">
+      <fieldset className="rounded-lg border border-line p-4">
         <legend className="px-1 text-lg font-semibold">Department controller for</legend>
         <p className="mb-2 text-base text-muted">
           A controller can correct the title, category and department of documents in these departments, and move them only

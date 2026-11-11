@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { ActionForm } from '@/components/action-form';
+import { Icon } from '@/components/icons';
 import { Notice, buttonPrimary, buttonSmall, fieldClass } from '@/components/ui';
 import { type ConfidentialGroup, adminGet, adminGetOrNull, requireAdmin } from '@/lib/admin';
 import type { UserRef } from '@/lib/mayan';
@@ -37,8 +38,12 @@ export default async function ConfidentialGroupPage({ params, searchParams }: Pa
         </Notice>
       )}
 
-      <section aria-labelledby="members" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
-        <h2 id="members" className="text-xl font-bold">
+      <section aria-labelledby="members" className="rounded-lg border border-wait/40 bg-surface p-4 sm:p-6">
+        <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-wait">
+          <Icon name="lock" className="size-4" />
+          Access change
+        </p>
+        <h2 id="members" className="text-lg font-bold">
           Members ({group.members?.length ?? 0})
         </h2>
         <p className="mt-1 text-base text-muted">Only these people can find, open, download or count this group’s documents.</p>
@@ -75,7 +80,7 @@ export default async function ConfidentialGroupPage({ params, searchParams }: Pa
           labels={{ user_id: 'Person' }}
         >
           <div className="sm:flex-1">
-            <label htmlFor="member" className="mb-2 block text-lg font-semibold">
+            <label htmlFor="member" className="mb-1.5 block text-base font-semibold">
               Add a person
             </label>
             <select id="member" name="user_id" defaultValue="" required className={fieldClass}>
@@ -92,8 +97,8 @@ export default async function ConfidentialGroupPage({ params, searchParams }: Pa
         </ActionForm>
       </section>
 
-      <section aria-labelledby="rename" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
-        <h2 id="rename" className="text-xl font-bold">
+      <section aria-labelledby="rename" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
+        <h2 id="rename" className="text-lg font-bold">
           Rename
         </h2>
         <p className="mt-1 text-base text-muted">
@@ -107,7 +112,7 @@ export default async function ConfidentialGroupPage({ params, searchParams }: Pa
           labels={{ name: 'Name' }}
         >
           <div className="sm:flex-1">
-            <label htmlFor="rename-group" className="mb-2 block text-lg font-semibold">
+            <label htmlFor="rename-group" className="mb-1.5 block text-base font-semibold">
               Name
             </label>
             <input id="rename-group" name="name" defaultValue={group.name} required maxLength={60} className={fieldClass} />

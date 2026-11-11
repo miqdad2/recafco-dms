@@ -23,7 +23,7 @@ export default async function NewUserPage() {
     >
       <ActionForm
         action={createUser}
-        className="flex max-w-4xl flex-col gap-5 rounded-2xl border border-line bg-white p-5 sm:p-6"
+        className="flex max-w-4xl flex-col gap-5 rounded-lg border border-line bg-surface p-4 sm:p-6"
         submit="Create user"
         pendingText="Creating…"
         submitClassName={buttonPrimary}
@@ -31,7 +31,7 @@ export default async function NewUserPage() {
       >
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label htmlFor="username" className="mb-2 block text-lg font-semibold">
+            <label htmlFor="username" className="mb-1.5 block text-base font-semibold">
               Username
             </label>
             <input
@@ -51,7 +51,7 @@ export default async function NewUserPage() {
             </p>
           </div>
           <div>
-            <label htmlFor="password" className="mb-2 block text-lg font-semibold">
+            <label htmlFor="password" className="mb-1.5 block text-base font-semibold">
               Temporary password
             </label>
             <PasswordInput id="password" name="password" autoComplete="off" describedBy="password-hint" />

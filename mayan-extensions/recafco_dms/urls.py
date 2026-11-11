@@ -8,7 +8,8 @@ from .api_views import (
     APIPortalDepartmentListView, APIPortalDocumentDetailsView,
     APIPortalDocumentDetailView, APIPortalDocumentFavoriteView,
     APIPortalDocumentSummaryListView, APIPortalFavoritesView, APIPortalMeView,
-    APIPortalMyUploadsView, APIPortalOptionsView, APIPortalTokenRevokeView,
+    APIPortalMyUploadsView, APIPortalOptionsView,
+    APIPortalRecentDocumentsView, APIPortalTokenRevokeView,
     APIPortalUploadOperationView, APIPortalUploadView
 )
 
@@ -55,6 +56,10 @@ api_urls = [
         route=r'^recafco/departments/{}/documents/$'.format(ID.format('department_id')),
         name='recafco-portal-department-documents',
         view=APIPortalDepartmentDocumentsView.as_view()
+    ),
+    re_path(
+        route=r'^recafco/documents/recent/$', name='recafco-portal-recent-documents',
+        view=APIPortalRecentDocumentsView.as_view()
     ),
     re_path(
         route=r'^recafco/documents/$',

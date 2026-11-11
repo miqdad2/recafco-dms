@@ -41,9 +41,9 @@ export default async function AdminHome() {
       <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {tiles.map((tile) => (
           <li key={tile.label}>
-            <Link href={tile.href} className="flex h-full flex-col gap-1 rounded-2xl border-2 border-line bg-white p-5 hover:border-brand">
+            <Link href={tile.href} className="flex h-full flex-col gap-1 rounded-lg border border-line bg-surface p-4 hover:border-line-strong hover:bg-hover">
               <span className="text-lg font-semibold text-muted">{tile.label}</span>
-              <span className="text-4xl font-bold tabular-nums">{tile.value}</span>
+              <span className="text-2xl font-bold tabular-nums">{tile.value}</span>
               <span className="text-base text-muted">{tile.note}</span>
             </Link>
           </li>
@@ -52,7 +52,7 @@ export default async function AdminHome() {
 
       <section aria-labelledby="recent" className="flex flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="recent" className="text-2xl font-bold">
+          <h2 id="recent" className="text-xl font-bold">
             Recent changes
           </h2>
           <Link href="/admin/activity" className="text-lg font-semibold text-brand underline-offset-4 hover:underline">
@@ -62,8 +62,8 @@ export default async function AdminHome() {
         <ActivityList entries={data.recent_activity} />
       </section>
 
-      <section aria-labelledby="elsewhere" className="rounded-2xl border border-line bg-white p-5">
-        <h2 id="elsewhere" className="text-xl font-bold">
+      <section aria-labelledby="elsewhere" className="rounded-lg border border-line bg-surface p-5">
+        <h2 id="elsewhere" className="text-lg font-bold">
           Not done here
         </h2>
         <p className="mt-2 text-lg text-muted">

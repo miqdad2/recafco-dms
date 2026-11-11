@@ -11,12 +11,12 @@ export function LoginForm() {
   return (
     <form action={formAction} className="mt-6 flex flex-col gap-5" noValidate>
       {state.error && (
-        <p role="alert" className="rounded-xl border-2 border-brand bg-brand-soft px-4 py-3 text-lg font-semibold text-brand-strong">
+        <p role="alert" className="rounded-lg border border-brand/40 bg-brand-soft px-4 py-3 text-lg font-semibold text-brand-strong">
           {state.error}
         </p>
       )}
       <div>
-        <label htmlFor="username" className="mb-2 block text-lg font-semibold">
+        <label htmlFor="username" className="mb-1.5 block text-base font-semibold">
           Username
         </label>
         <p id="username-hint" className="mb-2 text-base text-muted">
@@ -35,7 +35,7 @@ export function LoginForm() {
         />
       </div>
       <div>
-        <label htmlFor="password" className="mb-2 block text-lg font-semibold">
+        <label htmlFor="password" className="mb-1.5 block text-base font-semibold">
           Password
         </label>
         <PasswordInput id="password" name="password" autoComplete="current-password" />

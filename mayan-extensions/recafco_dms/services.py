@@ -817,3 +817,27 @@ def update_document_details(
             target=document
         )
     return changes
+
+
+def get_recent_documents(user, page, page_size):
+    """
+    Newest documents the user may view, across all departments (home page
+    "Recently uploaded"). Mayan's ACLs filter the list. One page plus one
+    row is read to tell whether more exist; the archive is never counted or
+    loaded in full.
+    """
+    start = (page - 1) * page_size
+    documents = list(
+        get_accessible_documents(user=user).select_related(
+            *DOCUMENT_RELATED
+        ).order_by('-datetime_created', '-pk')[start:start + page_size + 1]
+    )
+    return {
+        'has_more': len(documents) > page_size,
+        'page': page,
+        'page_size': page_size,
+        'results': [
+            serialize_document(document=document, user=user)
+            for document in documents[:page_size]
+        ]
+    }

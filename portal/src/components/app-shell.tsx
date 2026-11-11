@@ -2,17 +2,35 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { logout } from '@/app/actions';
 import { Icon } from '@/components/icons';
+import { MenuDetails } from '@/components/menu-details';
 import type { Session } from '@/lib/session-store';
 
-export type Section = 'departments' | 'uploads' | 'favorites' | 'admin' | null;
+export type Section = 'departments' | 'search' | 'uploads' | 'favorites' | 'admin' | null;
 
-const navItems: { section: Exclude<Section, null>; href: string; label: string; icon: string; adminOnly?: boolean }[] = [
+type NavItem = { section: Exclude<Section, null>; href: string; label: string; icon: string };
+
+const mainItems: NavItem[] = [
   { section: 'departments', href: '/', label: 'Departments', icon: 'folder' },
+  { section: 'search', href: '/search', label: 'Search documents', icon: 'search' },
   { section: 'uploads', href: '/my-uploads', label: 'My uploads', icon: 'upload' },
   { section: 'favorites', href: '/favorites', label: 'Favorites', icon: 'star' },
-  { section: 'admin', href: '/admin', label: 'Administration', icon: 'gear', adminOnly: true },
 ];
+const adminItem: NavItem = { section: 'admin', href: '/admin', label: 'Administration', icon: 'gear' };
 
+const SECTION_LABELS: Record<Exclude<Section, null>, string> = {
+  departments: 'Departments',
+  search: 'Search documents',
+  uploads: 'My uploads',
+  favorites: 'Favorites',
+  admin: 'Administration',
+};
+
+/**
+ * Application layout: a persistent sidebar on desktop, a compact header with
+ * the current section and the account menu, and a "Menu" button on phones
+ * and tablets. The Administration link is a convenience only; every admin
+ * page and endpoint checks the role again on the server.
+ */
 export function AppShell({
   session,
   section = null,
@@ -22,99 +40,127 @@ export function AppShell({
   section?: Section;
   children: React.ReactNode;
 }) {
-  // The Administration link is a convenience only: every admin page and
-  // endpoint checks the role again on the server.
-  const items = navItems.filter((item) => !item.adminOnly || session.isAdmin);
-
   return (
-    <>
-      <header className="border-b-4 border-brand bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Link href="/" className="flex min-h-12 shrink-0 items-center gap-3" aria-label="RECAFCO Documents – Departments">
-            <Image src="/recafco-logo.png" alt="" width={52} height={52} priority />
-            <span className="flex flex-col leading-tight">
-              <span className="text-xs font-bold tracking-[0.18em] text-brand">RECAFCO</span>
-              <span className="text-xl font-bold">Documents</span>
-            </span>
-          </Link>
-
-          <nav aria-label="Main" className="hidden lg:block">
-            <ul className="flex items-center gap-1">
-              {items.map((item) => (
-                <li key={item.href}>
-                  <NavLink item={item} current={item.section === section} />
-                </li>
-              ))}
-            </ul>
-          </nav>
-
-          <details className="group relative">
-            <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 rounded-xl border-2 border-line px-3 font-semibold hover:border-ink [&::-webkit-details-marker]:hidden">
-              <span aria-hidden="true" className="flex size-8 items-center justify-center rounded-full bg-ink text-sm font-bold text-white">
-                {initials(session.fullName)}
-              </span>
-              <span className="hidden max-w-48 truncate text-base sm:inline">{session.fullName}</span>
-              <Icon name="chevronDown" className="size-5 transition-transform group-open:rotate-180" />
-              <span className="sr-only">Account menu</span>
-            </summary>
-            <div className="absolute right-0 z-20 mt-2 w-72 rounded-2xl border-2 border-line bg-white p-4 shadow-lg">
-              <p className="text-lg font-semibold break-words">{session.fullName}</p>
-              <p className="text-base text-muted break-words">Signed in as {session.username}</p>
-              <Link
-                href="/change-password"
-                className="mt-4 flex min-h-12 items-center justify-center rounded-xl border-2 border-line px-4 text-base font-semibold hover:border-ink"
-              >
-                Change password
-              </Link>
-              <form id="signout-form" action={logout} className="mt-2">
-                <button
-                  type="submit"
-                  className="min-h-12 w-full rounded-xl border-2 border-ink px-4 text-base font-semibold hover:bg-canvas"
-                >
-                  Sign out
-                </button>
-              </form>
-            </div>
-          </details>
+    <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
+      <aside className="hidden border-r border-line bg-surface lg:block">
+        <div className="sticky top-0 flex h-dvh flex-col">
+          <Brand />
+          <MainNav session={session} section={section} label="Main" />
         </div>
+      </aside>
 
-        <nav aria-label="Main" className="border-t border-line lg:hidden">
-          <ul className="mx-auto flex max-w-7xl flex-wrap gap-1 px-2 py-1 sm:px-4">
-            {items.map((item) => (
-              <li key={item.href}>
-                <NavLink item={item} current={item.section === section} compact />
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </header>
-      <main id="main" className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
-        {children}
-      </main>
-    </>
+      <div className="flex min-w-0 flex-col">
+        <header className="sticky top-0 z-30 border-b border-line bg-surface">
+          <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+            <div className="flex min-w-0 items-center gap-2">
+              <MenuDetails className="group lg:hidden">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-line-strong px-3 font-semibold hover:bg-hover [&::-webkit-details-marker]:hidden">
+                  <Icon name="menu" className="size-5 group-open:hidden" />
+                  <Icon name="close" className="hidden size-5 group-open:block" />
+                  Menu
+                </summary>
+                <div className="fixed inset-x-0 top-16 bottom-0 z-40 overflow-y-auto border-t border-line bg-surface">
+                  <MainNav session={session} section={section} label="Main menu" />
+                </div>
+              </MenuDetails>
+              <Link href="/" className="flex min-h-11 items-center gap-2 lg:hidden" aria-label="RECAFCO Documents – Departments">
+                <Image src="/recafco-logo.png" alt="" width={36} height={36} priority />
+                <span className="hidden text-base font-bold sm:inline">RECAFCO Documents</span>
+              </Link>
+              {section && (
+                <p className="hidden truncate text-base font-semibold text-muted lg:block">{SECTION_LABELS[section]}</p>
+              )}
+            </div>
+            <AccountMenu session={session} />
+          </div>
+        </header>
+
+        <main id="main" className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }
 
-function NavLink({
-  item,
-  current,
-  compact = false,
-}: {
-  item: (typeof navItems)[number];
-  current: boolean;
-  compact?: boolean;
-}) {
+function Brand() {
+  return (
+    <Link href="/" className="flex items-center gap-3 border-b border-line px-5 py-4" aria-label="RECAFCO Documents – Departments">
+      <Image src="/recafco-logo.png" alt="" width={44} height={44} priority />
+      <span className="flex flex-col leading-tight">
+        <span className="text-xs font-bold tracking-[0.16em] text-brand">RECAFCO</span>
+        <span className="text-lg font-bold">Documents</span>
+      </span>
+    </Link>
+  );
+}
+
+function MainNav({ session, section, label }: { session: Session; section: Section; label: string }) {
+  return (
+    <nav aria-label={label} className="flex flex-1 flex-col gap-1 p-3">
+      <ul className="flex flex-col gap-1">
+        {mainItems.map((item) => (
+          <li key={item.href}>
+            <NavLink item={item} current={item.section === section} />
+          </li>
+        ))}
+      </ul>
+      {session.isAdmin && (
+        <ul className="mt-3 border-t border-line pt-3">
+          <li>
+            <NavLink item={adminItem} current={section === 'admin'} />
+          </li>
+        </ul>
+      )}
+    </nav>
+  );
+}
+
+function NavLink({ item, current }: { item: NavItem; current: boolean }) {
   return (
     <Link
       href={item.href}
       aria-current={current ? 'page' : undefined}
-      className={`flex min-h-12 items-center gap-2 rounded-xl px-3 font-semibold ${compact ? 'text-base' : 'text-lg'} ${
-        current ? 'bg-brand-soft text-brand-strong' : 'text-ink hover:bg-canvas'
+      className={`relative flex min-h-12 items-center gap-3 rounded-lg px-3 text-base font-semibold ${
+        current ? 'bg-brand-soft text-brand-strong' : 'text-ink hover:bg-hover'
       }`}
     >
-      <Icon name={item.icon} className="size-5" />
+      {current && <span aria-hidden="true" className="absolute inset-y-2 left-0 w-1 rounded-r bg-brand" />}
+      <Icon name={item.icon} className="size-5 shrink-0" />
       {item.label}
     </Link>
+  );
+}
+
+function AccountMenu({ session }: { session: Session }) {
+  return (
+    <MenuDetails className="relative">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-lg border border-line-strong px-2 font-semibold hover:bg-hover sm:px-3 [&::-webkit-details-marker]:hidden">
+        <span aria-hidden="true" className="flex size-7 items-center justify-center rounded-full bg-ink text-xs font-bold text-white">
+          {initials(session.fullName)}
+        </span>
+        <span className="hidden max-w-48 truncate text-base sm:inline">{session.fullName}</span>
+        <Icon name="chevronDown" className="size-4" />
+        <span className="sr-only">Account menu</span>
+      </summary>
+      <div className="absolute right-0 z-40 mt-2 w-72 rounded-lg border border-line bg-surface p-3 shadow-lg">
+        <p className="px-1 text-base font-semibold wrap-anywhere">{session.fullName}</p>
+        <p className="px-1 text-sm text-muted wrap-anywhere">Signed in as {session.username}</p>
+        <Link
+          href="/change-password"
+          className="mt-3 flex min-h-11 items-center gap-2 rounded-lg px-2 text-base font-semibold hover:bg-hover"
+        >
+          <Icon name="key" className="size-5" />
+          Change password
+        </Link>
+        <form id="signout-form" action={logout}>
+          <button type="submit" className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2 text-base font-semibold hover:bg-hover">
+            <Icon name="logout" className="size-5" />
+            Sign out
+          </button>
+        </form>
+      </div>
+    </MenuDetails>
   );
 }
 

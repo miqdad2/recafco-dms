@@ -12,7 +12,7 @@ export function PageImage({ src, alt, eager }: { src: string; alt: string; eager
 
   if (failed) {
     return (
-      <p className="rounded-xl bg-white p-4 text-lg">
+      <p className="rounded-lg bg-surface p-4 text-lg">
         {alt}: preview not available right now. Use Download to open the file.
       </p>
     );
@@ -26,7 +26,7 @@ export function PageImage({ src, alt, eager }: { src: string; alt: string; eager
       alt={alt}
       loading={eager ? 'eager' : 'lazy'}
       onError={() => setTimeout(() => setAttempt((value) => value + 1), 1500 * (attempt + 1))}
-      className="w-full rounded-xl border-2 border-line bg-white"
+      className="w-full rounded-lg border border-line bg-surface"
     />
   );
 }

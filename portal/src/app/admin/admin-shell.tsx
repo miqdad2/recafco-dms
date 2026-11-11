@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { AppShell } from '@/components/app-shell';
-import { Breadcrumb } from '@/components/ui';
+import { Breadcrumb, buttonPrimary } from '@/components/ui';
 import type { Session } from '@/lib/session-store';
 
 export type AdminSection = 'overview' | 'departments' | 'categories' | 'users' | 'confidential' | 'documents' | 'activity';
@@ -30,30 +30,31 @@ export function AdminShell({
 }) {
   return (
     <AppShell session={session} section="admin">
-      <Breadcrumb items={[{ href: '/admin', label: 'Administration' }, ...crumbs]} />
-      <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start">
-        <nav aria-label="Administration" className="rounded-2xl border border-line bg-white p-2">
-          <ul className="flex flex-wrap gap-1 lg:flex-col">
-            {sections.map((item) => (
-              <li key={item.id}>
-                <Link
-                  href={item.href}
-                  aria-current={item.id === section ? 'page' : undefined}
-                  className={`flex min-h-12 items-center rounded-xl px-3 text-base font-semibold ${
-                    item.id === section ? 'bg-brand-soft text-brand-strong' : 'hover:bg-canvas'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              </li>
-            ))}
+      <div className="flex flex-col gap-3">
+        <nav aria-label="Administration" className="border-b border-line">
+          <ul className="-mb-px flex flex-wrap gap-x-1">
+            {sections.map((item) => {
+              const current = item.id === section;
+              return (
+                <li key={item.id}>
+                  <Link
+                    href={item.href}
+                    aria-current={current ? 'page' : undefined}
+                    className={`flex min-h-11 items-center border-b-2 px-3 text-base font-semibold ${
+                      current ? 'border-brand text-ink' : 'border-transparent text-muted hover:border-line-strong hover:text-ink'
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </nav>
-        <div className="flex min-w-0 flex-col gap-6">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1>
-          {children}
-        </div>
+        {crumbs.length > 0 && <Breadcrumb items={[{ href: '/admin', label: 'Administration' }, ...crumbs]} />}
       </div>
+      <h1 className="text-2xl font-bold tracking-tight wrap-anywhere sm:text-3xl">{title}</h1>
+      {children}
     </AppShell>
   );
 }
@@ -62,12 +63,12 @@ export function AdminShell({
 export function NotAuthorized({ session }: { session: Session }) {
   return (
     <AppShell session={session}>
-      <h1 className="text-3xl font-bold">Administration</h1>
-      <p className="max-w-2xl text-lg">
+      <h1 className="text-2xl font-bold sm:text-3xl">Administration</h1>
+      <p className="max-w-2xl text-base">
         This area is only for RECAFCO administrators. If you need a change to departments, categories or accounts, please
         contact IT.
       </p>
-      <Link href="/" className="inline-flex min-h-14 items-center self-start rounded-xl bg-brand px-6 text-lg font-semibold text-white hover:bg-brand-strong">
+      <Link href="/" className={`${buttonPrimary} self-start`}>
         Go to Departments
       </Link>
     </AppShell>
@@ -75,5 +76,5 @@ export function NotAuthorized({ session }: { session: Session }) {
 }
 
 export const adminTable = 'w-full text-left';
-export const adminTh = 'px-4 py-3 text-base font-semibold text-muted';
+export const adminTh = 'px-4 py-2.5 text-sm font-semibold text-muted';
 export const adminTd = 'px-4 py-3 align-top text-base';

@@ -1,0 +1,206 @@
+[
+  {
+    "name": "01-home-phone",
+    "path": "/",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "01-home-tablet",
+    "path": "/",
+    "width": 768,
+    "horizontalScroll": false
+  },
+  {
+    "name": "01-home-desktop",
+    "path": "/",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "01-home-wide",
+    "path": "/",
+    "width": 1920,
+    "horizontalScroll": false
+  },
+  {
+    "name": "02-home-keyboard-focus",
+    "path": "/",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "03-mobile-menu-open",
+    "path": "/",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "04-department-phone",
+    "path": "/departments/1",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "04-department-tablet",
+    "path": "/departments/1",
+    "width": 768,
+    "horizontalScroll": false
+  },
+  {
+    "name": "04-department-desktop",
+    "path": "/departments/1",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "04-department-wide",
+    "path": "/departments/1",
+    "width": 1920,
+    "horizontalScroll": false
+  },
+  {
+    "name": "05-department-filtered-empty-desktop",
+    "path": "/departments/1?q=zzzz-no-such-text",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "06-search-results-phone",
+    "path": "/search?q=Supplier",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "06-search-results-desktop",
+    "path": "/search?q=Supplier",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "07-search-start-desktop",
+    "path": "/search",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "08-upload-phone",
+    "path": "/upload?department=1",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "08-upload-tablet",
+    "path": "/upload?department=1",
+    "width": 768,
+    "horizontalScroll": false
+  },
+  {
+    "name": "08-upload-desktop",
+    "path": "/upload?department=1",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "09-upload-validation-errors",
+    "path": "/upload?department=1",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "10-upload-file-selected-long-name-desktop",
+    "path": "/upload?department=1",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "10-upload-file-selected-long-name-phone",
+    "path": "/upload?department=1",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "11-document-long-title-desktop",
+    "path": "/documents/258?uploaded=1",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "11-document-long-title-phone",
+    "path": "/documents/258?uploaded=1",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "12-my-uploads-phone",
+    "path": "/my-uploads",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "12-my-uploads-desktop",
+    "path": "/my-uploads",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "13-favorites-desktop",
+    "path": "/favorites",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "14-admin-overview-phone",
+    "path": "/admin",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "14-admin-overview-desktop",
+    "path": "/admin",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "15-admin-users-desktop",
+    "path": "/admin/users",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "16-admin-user-access-changes-desktop",
+    "path": "/admin/users/14",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "16-admin-user-access-changes-phone",
+    "path": "/admin/users/14",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "17-admin-departments-desktop",
+    "path": "/admin/departments",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "18-admin-document-reclassify-desktop",
+    "path": "/admin/documents/258",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "19-upload-confidential-option-desktop",
+    "path": "/upload",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "20-upload-confidential-group-chosen",
+    "path": "/upload",
+    "width": 1440,
+    "horizontalScroll": false
+  }
+]

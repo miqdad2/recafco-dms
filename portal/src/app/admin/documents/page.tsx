@@ -31,7 +31,7 @@ export default async function AdminDocumentsPage({ searchParams }: PageProps<'/a
       </p>
       <form role="search" action="/admin/documents" className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="sm:flex-1">
-          <label htmlFor="document-search" className="mb-2 block text-lg font-semibold">
+          <label htmlFor="document-search" className="mb-1.5 block text-base font-semibold">
             Find a document
           </label>
           <input id="document-search" name="q" type="search" defaultValue={q} placeholder="Title or document number" className={fieldClass} />
@@ -42,9 +42,9 @@ export default async function AdminDocumentsPage({ searchParams }: PageProps<'/a
       </form>
 
       {data.results.length === 0 ? (
-        <p className="rounded-2xl bg-white p-5 text-lg">No documents found.</p>
+        <p className="rounded-lg bg-surface p-5 text-lg">No documents found.</p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-line bg-white">
+        <div className="overflow-x-auto rounded-lg border border-line bg-surface">
           <table className={adminTable}>
             <caption className="sr-only">Documents</caption>
             <thead className="border-b border-line bg-canvas">

@@ -19,8 +19,8 @@ export default async function AdminCategoriesPage() {
         open it: confidential access is set separately.
       </Notice>
 
-      <section aria-labelledby="add-category" className="rounded-2xl border border-line bg-white p-5">
-        <h2 id="add-category" className="text-xl font-bold">
+      <section aria-labelledby="add-category" className="rounded-lg border border-line bg-surface p-5">
+        <h2 id="add-category" className="text-lg font-bold">
           Add a category
         </h2>
         <ActionForm
@@ -32,7 +32,7 @@ export default async function AdminCategoriesPage() {
           labels={{ name: 'Name' }}
         >
           <div className="sm:flex-1">
-            <label htmlFor="new-category" className="mb-2 block text-lg font-semibold">
+            <label htmlFor="new-category" className="mb-1.5 block text-base font-semibold">
               Name
             </label>
             <input id="new-category" name="name" required maxLength={100} className={fieldClass} />
@@ -42,7 +42,7 @@ export default async function AdminCategoriesPage() {
 
       <ul className="flex flex-col gap-3">
         {categories.map((category) => (
-          <li key={category.id} className={`rounded-2xl border bg-white p-4 sm:p-5 ${category.is_active ? 'border-line' : 'border-dashed border-line'}`}>
+          <li key={category.id} className={`rounded-lg border bg-surface p-4 sm:p-5 ${category.is_active ? 'border-line' : 'border-dashed border-line'}`}>
             <p className="text-xl font-bold break-words">{category.name}</p>
             <p className="text-base text-muted">
               {category.is_active ? 'Active' : 'Deactivated'} · {category.total_documents} documents
@@ -58,7 +58,7 @@ export default async function AdminCategoriesPage() {
                   labels={{ name: 'Name' }}
                 >
                   <div className="sm:flex-1">
-                    <label htmlFor={`category-${category.id}`} className="mb-2 block text-lg font-semibold">
+                    <label htmlFor={`category-${category.id}`} className="mb-1.5 block text-base font-semibold">
                       Name
                     </label>
                     <input id={`category-${category.id}`} name="name" defaultValue={category.name} required maxLength={100} className={fieldClass} />

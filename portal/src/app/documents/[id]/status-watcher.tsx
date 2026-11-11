@@ -44,7 +44,7 @@ export function StatusWatcher({ documentId }: { documentId: number }) {
   }, [documentId, router]);
 
   return (
-    <p role="status" aria-live="polite" className="flex items-center gap-3 rounded-xl bg-wait-soft px-4 py-3 text-lg text-wait">
+    <p role="status" aria-live="polite" className="flex items-center gap-3 rounded-lg bg-wait-soft px-4 py-3 text-lg text-wait">
       <span aria-hidden="true" className="size-5 shrink-0 animate-spin rounded-full border-4 border-wait border-t-transparent" />
       {message}
     </p>

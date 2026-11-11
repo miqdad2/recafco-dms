@@ -22,7 +22,8 @@ from rest_framework.views import APIView
 from .access import get_controller_department_ids, is_portal_admin
 from .literals import (
     DEPARTMENT_DOCUMENTS_MAXIMUM_PAGE_SIZE, DEPARTMENT_DOCUMENTS_PAGE_SIZE,
-    MY_UPLOADS_DEFAULT_LIMIT, MY_UPLOADS_MAXIMUM_LIMIT, SUMMARY_BATCH_LIMIT,
+    MY_UPLOADS_DEFAULT_LIMIT, MY_UPLOADS_MAXIMUM_LIMIT,
+    RECENT_DOCUMENTS_MAXIMUM_PAGE_SIZE, RECENT_DOCUMENTS_PAGE_SIZE, SUMMARY_BATCH_LIMIT,
     UPLOAD_ALLOWED_FIELDS
 )
 from .models import (
@@ -33,7 +34,8 @@ from .services import (
     InputRejected, confidential_group_display, get_accessible_document,
     get_department_documents, get_departments_for_user,
     get_document_summaries, get_editable_department_ids, get_favorite_ids,
-    get_favorites, get_my_uploads, get_upload_options, serialize_category,
+    get_favorites, get_my_uploads, get_recent_documents, get_upload_options,
+    serialize_category,
     serialize_department, serialize_document, set_favorite,
     update_document_details, user_can_upload
 )
@@ -425,3 +427,23 @@ class APIPortalTokenRevokeView(PortalAPIView):
     def post(self, request):
         Token.objects.filter(user=request.user).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(exclude=True)
+class APIPortalRecentDocumentsView(PortalAPIView):
+    """
+    GET ?page=&page_size= -> newest documents the caller may view, across
+    all departments. Small pages only (RECENT_DOCUMENTS_MAXIMUM_PAGE_SIZE).
+    """
+    def get(self, request):
+        return Response(
+            get_recent_documents(
+                page=query_int(request=request, name='page', default=1, maximum=100),
+                page_size=query_int(
+                    request=request, name='page_size',
+                    default=RECENT_DOCUMENTS_PAGE_SIZE,
+                    maximum=RECENT_DOCUMENTS_MAXIMUM_PAGE_SIZE
+                ),
+                user=request.user
+            )
+        )

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Icon } from '@/components/icons';
 import { notFound } from 'next/navigation';
 import { updateDetails } from '@/app/documents/[id]/actions';
 import { ActionForm } from '@/components/action-form';
@@ -41,7 +42,7 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
         </Link>
       </div>
 
-      <dl className="grid gap-x-6 gap-y-2 rounded-2xl border border-line bg-white p-5 sm:grid-cols-[max-content_1fr]">
+      <dl className="grid gap-x-6 gap-y-2 rounded-lg border border-line bg-surface p-5 sm:grid-cols-[max-content_1fr]">
         {(
           [
             ['Document number', String(document.id)],
@@ -64,8 +65,8 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
       </dl>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <section aria-labelledby="correct" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
-          <h2 id="correct" className="text-xl font-bold">
+        <section aria-labelledby="correct" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
+          <h2 id="correct" className="text-lg font-bold">
             Correct the details
           </h2>
           <ActionForm
@@ -76,13 +77,13 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
             labels={{ label: 'Title', department_id: 'Department', category_id: 'Category' }}
           >
             <div>
-              <label htmlFor="label" className="mb-2 block text-lg font-semibold">
+              <label htmlFor="label" className="mb-1.5 block text-base font-semibold">
                 Title
               </label>
               <input id="label" name="label" defaultValue={document.label} required maxLength={255} className={fieldClass} />
             </div>
             <div>
-              <label htmlFor="department" className="mb-2 block text-lg font-semibold">
+              <label htmlFor="department" className="mb-1.5 block text-base font-semibold">
                 Department
               </label>
               <select id="department" name="department_id" defaultValue={document.department_ref ? String(document.department_ref.id) : ''} className={fieldClass}>
@@ -97,7 +98,7 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
               </select>
             </div>
             <div>
-              <label htmlFor="category" className="mb-2 block text-lg font-semibold">
+              <label htmlFor="category" className="mb-1.5 block text-base font-semibold">
                 Category
               </label>
               <select id="category" name="category_id" defaultValue={document.category_ref ? String(document.category_ref.id) : ''} className={fieldClass}>
@@ -114,8 +115,8 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
           </ActionForm>
         </section>
 
-        <section aria-labelledby="responsible" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
-          <h2 id="responsible" className="text-xl font-bold">
+        <section aria-labelledby="responsible" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
+          <h2 id="responsible" className="text-lg font-bold">
             Responsible person
           </h2>
           <p className="mt-1 text-base text-muted">
@@ -130,7 +131,7 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
             labels={{ user_id: 'Person' }}
           >
             <div>
-              <label htmlFor="responsible-select" className="mb-2 block text-lg font-semibold">
+              <label htmlFor="responsible-select" className="mb-1.5 block text-base font-semibold">
                 Responsible person
               </label>
               <select id="responsible-select" name="user_id" defaultValue={document.responsible ? String(document.responsible.id) : ''} required className={fieldClass}>
@@ -149,8 +150,12 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
       </div>
 
       {document.can_reclassify && groups.results.length > 0 && (
-        <section aria-labelledby="reclassify" className="rounded-2xl border-2 border-ink bg-white p-5 sm:p-6">
-          <h2 id="reclassify" className="text-xl font-bold">
+        <section aria-labelledby="reclassify" className="rounded-lg border border-wait/40 bg-surface p-4 sm:p-6">
+          <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-wait">
+            <Icon name="lock" className="size-4" />
+            Access change
+          </p>
+          <h2 id="reclassify" className="text-lg font-bold">
             {document.confidential_group ? 'Move to another confidential group' : 'Make confidential'}
           </h2>
           <ul className="mt-2 flex list-disc flex-col gap-1 pl-6 text-base">
@@ -172,7 +177,7 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
             confirm="Restrict this document now? Copies already downloaded cannot be recalled."
           >
             <div>
-              <label htmlFor="reclassify-group" className="mb-2 block text-lg font-semibold">
+              <label htmlFor="reclassify-group" className="mb-1.5 block text-base font-semibold">
                 Confidential group
               </label>
               <select id="reclassify-group" name="confidential_group" defaultValue="" required className={fieldClass}>
@@ -197,7 +202,7 @@ export default async function AdminDocumentPage({ params }: PageProps<'/admin/do
       )}
 
       <section aria-labelledby="history" className="flex flex-col gap-3">
-        <h2 id="history" className="text-xl font-bold">
+        <h2 id="history" className="text-lg font-bold">
           Change history
         </h2>
         <ActivityList entries={document.history} />

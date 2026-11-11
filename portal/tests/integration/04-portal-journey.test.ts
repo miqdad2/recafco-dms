@@ -59,8 +59,10 @@ describe('employee journey', () => {
     const home = await portalGet('/', a);
     expect(home.status).toBe(200);
     const html = await home.text();
-    // React separates static text and a variable with an HTML comment.
-    expect(html).toMatch(/Good (morning|afternoon|evening)(<!-- -->)?, (<!-- -->)?Employee/);
+    // UI refresh: the greeting panel was removed on purpose; the home page
+    // now opens with the "Departments" heading and the user menu shows the name.
+    expect(html).toMatch(/<h1 id="departments-heading"[^>]*>\s*Departments\s*<\/h1>/);
+    expect(html).toContain('Employee A');
     for (const text of ['Search all documents', 'Upload documents', 'Departments', 'My uploads', 'Favorites', 'Sign out']) {
       expect(html).toContain(text);
     }

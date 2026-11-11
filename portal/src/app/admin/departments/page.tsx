@@ -1,6 +1,5 @@
 import { ActionForm } from '@/components/action-form';
-import { Icon } from '@/components/icons';
-import { Notice, SampleBadge, buttonPrimary, buttonSmall, fieldClass } from '@/components/ui';
+import { Notice, SampleBadge, buttonPrimary, buttonSmall, fieldClass, DepartmentIcon } from '@/components/ui';
 import { type AdminDepartment, adminGet, requireAdmin } from '@/lib/admin';
 import { createDepartment, moveDepartment, setDepartmentActive, updateDepartment } from '../actions';
 import { AdminShell, NotAuthorized } from '../admin-shell';
@@ -50,8 +49,8 @@ export default async function AdminDepartmentsPage() {
         disappears from the home page and from Upload, but its documents stay where they are.
       </Notice>
 
-      <section aria-labelledby="add-department" className="rounded-2xl border border-line bg-white p-5">
-        <h2 id="add-department" className="text-xl font-bold">
+      <section aria-labelledby="add-department" className="rounded-lg border border-line bg-surface p-5">
+        <h2 id="add-department" className="text-lg font-bold">
           Add a department
         </h2>
         <ActionForm
@@ -63,13 +62,13 @@ export default async function AdminDepartmentsPage() {
           labels={{ name: 'Name', icon: 'Icon' }}
         >
           <div>
-            <label htmlFor="new-name" className="mb-2 block text-lg font-semibold">
+            <label htmlFor="new-name" className="mb-1.5 block text-base font-semibold">
               Name
             </label>
             <input id="new-name" name="name" required maxLength={100} className={fieldClass} />
           </div>
           <div>
-            <label htmlFor="new-icon" className="mb-2 block text-lg font-semibold">
+            <label htmlFor="new-icon" className="mb-1.5 block text-base font-semibold">
               Icon
             </label>
             <IconSelect id="new-icon" value="folder" icons={data.icons} />
@@ -82,19 +81,17 @@ export default async function AdminDepartmentsPage() {
       </section>
 
       <section aria-labelledby="department-list" className="flex flex-col gap-3">
-        <h2 id="department-list" className="text-xl font-bold">
+        <h2 id="department-list" className="text-lg font-bold">
           Order on the home page
         </h2>
         <ol className="flex flex-col gap-3">
           {departments.map((department, index) => (
-            <li key={department.id} className={`rounded-2xl border bg-white p-4 sm:p-5 ${department.is_active ? 'border-line' : 'border-dashed border-line opacity-90'}`}>
+            <li key={department.id} className={`rounded-lg border bg-surface p-4 sm:p-5 ${department.is_active ? 'border-line' : 'border-dashed border-line opacity-90'}`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-brand-soft text-brand">
-                    <Icon name={department.icon} className="size-7" />
-                  </span>
+                  <DepartmentIcon id={department.id} icon={department.icon} />
                   <div className="min-w-0">
-                    <p className="text-xl font-bold break-words">{department.name}</p>
+                    <p className="text-lg font-bold wrap-anywhere">{department.name}</p>
                     <p className="flex flex-wrap items-center gap-2 text-base text-muted">
                       {department.is_active ? 'Active' : 'Deactivated'} · {department.total_documents} documents
                       {department.is_sample && <SampleBadge />}
@@ -137,13 +134,13 @@ export default async function AdminDepartmentsPage() {
                     labels={{ name: 'Name', icon: 'Icon' }}
                   >
                     <div>
-                      <label htmlFor={`name-${department.id}`} className="mb-2 block text-lg font-semibold">
+                      <label htmlFor={`name-${department.id}`} className="mb-1.5 block text-base font-semibold">
                         Name
                       </label>
                       <input id={`name-${department.id}`} name="name" defaultValue={department.name} required maxLength={100} className={fieldClass} />
                     </div>
                     <div>
-                      <label htmlFor={`icon-${department.id}`} className="mb-2 block text-lg font-semibold">
+                      <label htmlFor={`icon-${department.id}`} className="mb-1.5 block text-base font-semibold">
                         Icon
                       </label>
                       <IconSelect id={`icon-${department.id}`} value={department.icon} icons={data.icons} />

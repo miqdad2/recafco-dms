@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Icon } from '@/components/icons';
 import { notFound } from 'next/navigation';
 import { ActionForm } from '@/components/action-form';
 import { Notice, buttonPrimary, buttonSecondary, formatDate } from '@/components/ui';
@@ -53,8 +54,8 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
         </Notice>
       )}
 
-      <section aria-labelledby="details" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
-        <h2 id="details" className="mb-4 text-xl font-bold">
+      <section aria-labelledby="details" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
+        <h2 id="details" className="mb-4 text-lg font-bold">
           Name, roles and departments
         </h2>
         <ActionForm
@@ -68,8 +69,8 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
         </ActionForm>
       </section>
 
-      <section aria-labelledby="confidential" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
-        <h2 id="confidential" className="text-xl font-bold">
+      <section aria-labelledby="confidential" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
+        <h2 id="confidential" className="text-lg font-bold">
           Confidential access
         </h2>
         {user.confidential_groups.length === 0 ? (
@@ -78,7 +79,7 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
           <ul className="mt-2 flex flex-wrap gap-2">
             {user.confidential_groups.map((group) => (
               <li key={group.id}>
-                <Link href={`/admin/confidential-groups/${group.id}`} className="inline-flex min-h-12 items-center rounded-xl border-2 border-line px-4 text-base font-semibold hover:border-ink">
+                <Link href={`/admin/confidential-groups/${group.id}`} className="inline-flex min-h-12 items-center rounded-lg border border-line px-4 text-base font-semibold hover:border-line-strong hover:bg-hover">
                   {group.name}
                 </Link>
               </li>
@@ -89,8 +90,12 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <section aria-labelledby="password" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
-          <h2 id="password" className="text-xl font-bold">
+        <section aria-labelledby="password" className="rounded-lg border border-wait/40 bg-surface p-4 sm:p-6">
+          <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-wait">
+            <Icon name="lock" className="size-4" />
+            Access change
+          </p>
+          <h2 id="password" className="text-lg font-bold">
             Reset password
           </h2>
           {isSelf ? (
@@ -116,7 +121,7 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
                 when they sign in with the temporary one.
               </p>
               <div>
-                <label htmlFor="new-password" className="mb-2 block text-lg font-semibold">
+                <label htmlFor="new-password" className="mb-1.5 block text-base font-semibold">
                   Temporary password
                 </label>
                 <PasswordInput id="new-password" name="password" autoComplete="off" describedBy="new-password-hint" />
@@ -128,8 +133,12 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
           )}
         </section>
 
-        <section aria-labelledby="status" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
-          <h2 id="status" className="text-xl font-bold">
+        <section aria-labelledby="status" className="rounded-lg border border-wait/40 bg-surface p-4 sm:p-6">
+          <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-wait">
+            <Icon name="lock" className="size-4" />
+            Access change
+          </p>
+          <h2 id="status" className="text-lg font-bold">
             {user.is_active ? 'Deactivate account' : 'Reactivate account'}
           </h2>
           {isSelf ? (

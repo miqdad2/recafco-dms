@@ -23,7 +23,7 @@ export default async function ConfidentialGroupsPage() {
       <ul className="grid gap-4 md:grid-cols-2">
         {groups.map((group) => (
           <li key={group.id}>
-            <Link href={`/admin/confidential-groups/${group.id}`} className="flex h-full flex-col gap-1 rounded-2xl border-2 border-line bg-white p-5 hover:border-brand">
+            <Link href={`/admin/confidential-groups/${group.id}`} className="flex h-full flex-col gap-1 rounded-lg border border-line bg-surface p-4 hover:border-line-strong hover:bg-hover">
               <span className="text-xl font-bold break-words">{group.name}</span>
               <span className="text-lg text-muted">
                 {group.member_count} {group.member_count === 1 ? 'member' : 'members'}
@@ -33,8 +33,8 @@ export default async function ConfidentialGroupsPage() {
         ))}
       </ul>
 
-      <section aria-labelledby="new-group" className="rounded-2xl border border-line bg-white p-5">
-        <h2 id="new-group" className="text-xl font-bold">
+      <section aria-labelledby="new-group" className="rounded-lg border border-line bg-surface p-5">
+        <h2 id="new-group" className="text-lg font-bold">
           Create a confidential group
         </h2>
         <p className="mt-1 text-base text-muted">
@@ -49,7 +49,7 @@ export default async function ConfidentialGroupsPage() {
           labels={{ name: 'Name' }}
         >
           <div className="sm:flex-1">
-            <label htmlFor="group-name" className="mb-2 block text-lg font-semibold">
+            <label htmlFor="group-name" className="mb-1.5 block text-base font-semibold">
               Name
             </label>
             <input id="group-name" name="name" required maxLength={60} placeholder="For example: HR files" className={fieldClass} />

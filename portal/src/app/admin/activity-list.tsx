@@ -34,10 +34,10 @@ function describeChanges(details: Record<string, unknown>): string {
 
 export function ActivityList({ entries }: { entries: AuditEntry[] }) {
   if (entries.length === 0) {
-    return <p className="rounded-2xl bg-white p-5 text-lg text-muted">No changes have been recorded yet.</p>;
+    return <p className="rounded-lg bg-surface p-5 text-lg text-muted">No changes have been recorded yet.</p>;
   }
   return (
-    <ol className="flex flex-col divide-y divide-line rounded-2xl border border-line bg-white">
+    <ol className="flex flex-col divide-y divide-line rounded-lg border border-line bg-surface">
       {entries.map((entry) => {
         const href = targetHref(entry);
         const changes = describeChanges(entry.details);

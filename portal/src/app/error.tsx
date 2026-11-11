@@ -12,11 +12,11 @@ export default function ErrorPage({ reset }: { error: Error; reset: () => void }
         <button
           type="button"
           onClick={reset}
-          className="inline-flex min-h-14 items-center rounded-xl bg-brand px-6 text-lg font-semibold text-white hover:bg-brand-strong"
+          className="inline-flex min-h-12 items-center rounded-lg bg-brand px-6 text-lg font-semibold text-white hover:bg-brand-strong"
         >
           Try again
         </button>
-        <Link href="/" className="inline-flex min-h-14 items-center rounded-xl border-2 border-ink px-6 text-lg font-semibold">
+        <Link href="/" className="inline-flex min-h-12 items-center rounded-lg border border-line-strong px-6 text-lg font-semibold">
           Go to Departments
         </Link>
       </div>

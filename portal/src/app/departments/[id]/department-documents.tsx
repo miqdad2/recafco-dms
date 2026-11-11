@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { DocumentTable, EmptyState, Notice, Pagination, buttonPrimary } from '@/components/ui';
+import { DocumentTable, EmptyState, Notice, Pagination, buttonPrimary, linkClass } from '@/components/ui';
 import { requireSession, withMayan } from '@/lib/auth';
 import { DEPARTMENT_PAGE_SIZE, getDepartmentDocuments } from '@/lib/mayan';
 
@@ -37,14 +37,14 @@ export async function DepartmentDocuments({
   return (
     <section aria-labelledby="documents-heading" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="documents-heading" className="text-2xl font-bold" aria-live="polite">
+        <h2 id="documents-heading" className="text-lg font-bold" aria-live="polite">
           {filtered
             ? `${documents.count} ${documents.count === 1 ? 'result' : 'results'}${q ? ` for “${q}”` : ''}${categoryName ? ` in ${categoryName}` : ''}`
             : 'Recently uploaded'}
         </h2>
-        <p className="text-base text-muted">
+        <p className="text-sm text-muted">
           {filtered ? 'Only this department is searched. ' : 'Newest first. '}
-          <Link href={`/search${q ? `?q=${encodeURIComponent(q)}` : ''}`} className="font-semibold text-brand underline-offset-4 hover:underline">
+          <Link href={`/search${q ? `?q=${encodeURIComponent(q)}` : ''}`} className={linkClass}>
             Search all departments
           </Link>
         </p>
@@ -59,8 +59,8 @@ export async function DepartmentDocuments({
       {documents.count === 0 ? (
         filtered ? (
           <EmptyState title="No documents match your search." icon="search">
-            <p className="text-lg text-muted">Check the spelling, choose another category, or try fewer words.</p>
-            <Link href={`/departments/${department.id}`} className="self-start text-lg font-semibold text-brand underline-offset-4 hover:underline">
+            <p className="text-base text-muted">Check the spelling, choose another category, or try fewer words.</p>
+            <Link href={`/departments/${department.id}`} className={`${linkClass} self-start`}>
               Show all documents in {department.name}
             </Link>
           </EmptyState>
@@ -75,7 +75,7 @@ export async function DepartmentDocuments({
         )
       ) : documents.results.length === 0 ? (
         <EmptyState title="There are no more documents on this page.">
-          <Link href={hrefFor(1)} className="self-start text-lg font-semibold text-brand underline-offset-4 hover:underline">
+          <Link href={hrefFor(1)} className={`${linkClass} self-start`}>
             Go to the first page
           </Link>
         </EmptyState>
@@ -91,11 +91,11 @@ export async function DepartmentDocuments({
 export function DocumentsLoading() {
   return (
     <div aria-busy="true" className="flex flex-col gap-3">
-      <p role="status" className="text-lg font-semibold">
+      <p role="status" className="text-base font-semibold">
         Loading documents…
       </p>
       {[0, 1, 2, 3].map((row) => (
-        <div key={row} className="h-16 animate-pulse rounded-2xl bg-white ring-1 ring-line" />
+        <div key={row} className="h-14 animate-pulse rounded-lg bg-surface ring-1 ring-line" />
       ))}
     </div>
   );

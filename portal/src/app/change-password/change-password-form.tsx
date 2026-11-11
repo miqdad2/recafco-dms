@@ -33,7 +33,7 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
   return (
     <form ref={formRef} action={formAction} className="mt-6 flex flex-col gap-5" noValidate>
       {Object.keys(errors).length > 0 && (
-        <div role="alert" className="rounded-xl border-2 border-brand bg-brand-soft px-4 py-3 text-lg font-semibold text-brand-strong">
+        <div role="alert" className="rounded-lg border border-brand/40 bg-brand-soft px-4 py-3 text-base font-semibold text-brand-strong">
           <p>{errors.form ?? 'Your password was not changed.'}</p>
           {Object.entries(errors)
             .filter(([field]) => field !== 'form')
@@ -45,12 +45,12 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
         </div>
       )}
       {state.ok && Object.keys(errors).length === 0 && (
-        <p role="status" className="rounded-xl border-2 border-ok bg-ok-soft px-4 py-3 text-lg font-semibold text-ok">
+        <p role="status" className="rounded-lg border border-ok/40 bg-ok-soft px-4 py-3 text-base font-semibold text-ok">
           {state.ok}
         </p>
       )}
       <div>
-        <label htmlFor="current_password" className="mb-2 block text-lg font-semibold">
+        <label htmlFor="current_password" className="mb-1.5 block text-base font-semibold">
           {currentLabel}
         </label>
         <PasswordInput
@@ -63,7 +63,7 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
         {fieldError('current_password')}
       </div>
       <div>
-        <label htmlFor="new_password" className="mb-2 block text-lg font-semibold">
+        <label htmlFor="new_password" className="mb-1.5 block text-base font-semibold">
           New password
         </label>
         <p id="new_password-hint" className="mb-2 text-base text-muted">
@@ -79,7 +79,7 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
         {fieldError('new_password')}
       </div>
       <div>
-        <label htmlFor="new_password_again" className="mb-2 block text-lg font-semibold">
+        <label htmlFor="new_password_again" className="mb-1.5 block text-base font-semibold">
           Type the new password again
         </label>
         <PasswordInput

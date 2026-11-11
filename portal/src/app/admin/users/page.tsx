@@ -26,7 +26,7 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <form role="search" className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-end" action="/admin/users">
           <div className="sm:flex-1">
-            <label htmlFor="user-search" className="mb-2 block text-lg font-semibold">
+            <label htmlFor="user-search" className="mb-1.5 block text-base font-semibold">
               Find a person
             </label>
             <input id="user-search" name="q" type="search" defaultValue={q} placeholder="Name, username or email" className={fieldClass} />
@@ -42,9 +42,9 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
       <p className="text-base text-muted">Mayan system accounts (superusers and staff) are managed by IT and are not listed.</p>
 
       {users.results.length === 0 ? (
-        <p className="rounded-2xl bg-white p-5 text-lg">No people found.</p>
+        <p className="rounded-lg bg-surface p-5 text-lg">No people found.</p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-line bg-white">
+        <div className="overflow-x-auto rounded-lg border border-line bg-surface">
           <table className={adminTable}>
             <caption className="sr-only">Users</caption>
             <thead className="border-b border-line bg-canvas">

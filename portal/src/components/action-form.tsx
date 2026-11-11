@@ -50,7 +50,7 @@ export function ActionForm({
       }}
     >
       {errors.length > 0 && (
-        <div role="alert" className="rounded-xl border-2 border-brand bg-brand-soft px-4 py-3 text-lg font-semibold text-brand-strong">
+        <div role="alert" className="rounded-lg border border-brand/40 bg-brand-soft px-4 py-3 text-base font-semibold text-brand-strong">
           {errors.map(([field, message]) => (
             <p key={field}>
               {field !== 'form' && labels[field] ? `${labels[field]}: ` : ''}
@@ -60,7 +60,7 @@ export function ActionForm({
         </div>
       )}
       {state.ok && errors.length === 0 && (
-        <p role="status" className="rounded-xl border-2 border-ok bg-ok-soft px-4 py-3 text-lg font-semibold text-ok">
+        <p role="status" className="rounded-lg border border-ok/40 bg-ok-soft px-4 py-3 text-base font-semibold text-ok">
           {state.ok}
         </p>
       )}

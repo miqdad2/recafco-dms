@@ -1,5 +1,6 @@
+import Link from 'next/link';
 import { AppShell } from '@/components/app-shell';
-import { Breadcrumb, Notice, PageTitle } from '@/components/ui';
+import { Breadcrumb, Notice, PageHeader, buttonSecondary } from '@/components/ui';
 import { requireSession, withMayan } from '@/lib/auth';
 import { config } from '@/lib/config';
 import { getOptions } from '@/lib/mayan';
@@ -17,8 +18,11 @@ export default async function UploadPage({ searchParams }: PageProps<'/upload'>)
     return (
       <AppShell session={session} section="departments">
         <Breadcrumb items={[{ href: '/', label: 'Departments' }, { label: 'Upload documents' }]} />
-        <PageTitle>Upload documents</PageTitle>
-        <p className="text-lg">Your account cannot upload documents. Ask IT if you need this.</p>
+        <PageHeader title="Upload documents" />
+        <p className="text-base">Your account cannot upload documents. Ask IT if you need this.</p>
+        <Link href="/" className={`${buttonSecondary} self-start`}>
+          Back to Departments
+        </Link>
       </AppShell>
     );
   }
@@ -35,25 +39,22 @@ export default async function UploadPage({ searchParams }: PageProps<'/upload'>)
           { label: 'Upload documents' },
         ]}
       />
-      <PageTitle>Upload documents</PageTitle>
-      {requestedId !== null && !preselected && (
-        <Notice tone="wait" role="status">
-          That department is not available for new documents. Choose a department below.
-        </Notice>
-      )}
-      <p className="max-w-3xl text-lg text-muted">
-        {options.confidential_groups.length > 0
-          ? 'Normally everyone at RECAFCO can find and open what you upload. As an administrator you can instead choose one confidential group below. '
-          : 'Everyone at RECAFCO who can sign in will be able to find and open this document. '}
-        Your name and the upload date are shown next to it.
-      </p>
-      <UploadForm
-        departments={options.departments}
-        categories={options.categories}
-        defaultDepartment={preselected?.name ?? ''}
-        confidentialGroups={options.confidential_groups}
-        maxBytes={config.maxUploadBytes}
-      />
+      <div className="flex w-full max-w-[52rem] flex-col gap-5">
+        <PageHeader title="Upload documents" description="Add one document at a time. You can find it again under My uploads." />
+        {requestedId !== null && !preselected && (
+          <Notice tone="wait" role="status">
+            That department is not available for new documents. Choose a department below.
+          </Notice>
+        )}
+        <UploadForm
+          departments={options.departments}
+          categories={options.categories}
+          defaultDepartment={preselected?.name ?? ''}
+          confidentialGroups={options.confidential_groups}
+          maxBytes={config.maxUploadBytes}
+          cancelHref={preselected ? `/departments/${preselected.id}` : '/'}
+        />
+      </div>
     </AppShell>
   );
 }

@@ -6,7 +6,7 @@ import {
   Breadcrumb,
   ConfidentialBadge,
   Notice,
-  PageTitle,
+  PageHeader,
   StateBadge,
   buttonPrimary,
   buttonSecondary,
@@ -14,6 +14,7 @@ import {
   fileType,
   formatDate,
   formatSize,
+  labelClass,
 } from '@/components/ui';
 import { requireSession, withMayan } from '@/lib/auth';
 import { getDocument, getOptions } from '@/lib/mayan';
@@ -41,13 +42,20 @@ export default async function DocumentPage({ params, searchParams }: PageProps<'
   const details: [string, string | null][] = [
     ['Department', document.department],
     ['Category', document.category],
-    ['Access', document.confidential_group ? `Confidential – ${document.confidential_group.name}` : 'General (all employees)'],
+    ['Access', document.confidential_group ? `Confidential – only ${document.confidential_group.name}` : 'General – all employees'],
     ['Originally uploaded by', document.uploaded_by?.full_name ?? 'Not recorded'],
     ['Upload date', formatDate(document.datetime_created)],
     ['Responsible person', document.responsible?.assigned ? document.responsible.full_name : null],
-    ['File', document.file ? [document.file.filename, formatSize(document.file.size)].filter(Boolean).join(' · ') : null],
-    ['Type', document.file ? fileType(document.file) : null],
   ];
+  const fileDetails: [string, string | null][] = document.file
+    ? [
+        ['File name', document.file.filename],
+        ['Type', fileType(document.file)],
+        ['Size', formatSize(document.file.size) || null],
+        ['Pages', document.version ? String(document.version.page_count) : null],
+      ]
+    : [];
+  const downloadHref = document.file ? `/api/documents/${document.id}/files/${document.file.id}/download` : null;
   const department = document.department_ref;
 
   return (
@@ -66,31 +74,50 @@ export default async function DocumentPage({ params, searchParams }: PageProps<'
         </Notice>
       )}
 
-      <div className="flex flex-col gap-3">
-        <PageTitle>
-          <span className="break-words">{document.label}</span>
-        </PageTitle>
-        <div className="flex flex-wrap gap-2">
-          {document.access === 'confidential' && <ConfidentialBadge />}
-          <StateBadge state={document.state} />
-        </div>
-      </div>
+      <PageHeader
+        title={document.label}
+        titleDir="auto"
+        description={
+          <span className="flex flex-wrap items-center gap-3">
+            {document.access === 'confidential' && <ConfidentialBadge />}
+            <StateBadge state={document.state} />
+          </span>
+        }
+        actions={
+          <>
+            {downloadHref && (
+              <a href={downloadHref} className={buttonPrimary} download>
+                <Icon name="download" className="size-5" />
+                Download
+              </a>
+            )}
+            <form action={toggleFavorite.bind(null, document.id, !document.is_favorite)}>
+              <button type="submit" className={buttonSecondary} aria-pressed={document.is_favorite}>
+                <Icon name="star" className={`size-5 ${document.is_favorite ? 'fill-current text-brand' : ''}`} />
+                {document.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+              </button>
+            </form>
+          </>
+        }
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
-        <section aria-labelledby="preview-heading" className="order-2 flex flex-col gap-4 lg:order-1">
-          <h2 id="preview-heading" className="text-2xl font-bold">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <section aria-labelledby="preview-heading" className="order-2 flex min-w-0 flex-col gap-3 lg:order-1">
+          <h2 id="preview-heading" className="text-lg font-bold">
             Preview
           </h2>
           {(document.state === 'processing' || document.state === 'delayed') && (
             <StatusWatcher documentId={document.id} />
           )}
           {document.state === 'no_preview' && (
-            <p className="rounded-2xl bg-white p-5 text-lg">This file type cannot be previewed here. Use Download to open it.</p>
+            <p className="rounded-lg border border-line bg-surface p-5 text-base">
+              This file type cannot be previewed here. Use <strong>Download</strong> to open it.
+            </p>
           )}
           {document.state === 'ready' && document.version && (
             <>
               {document.version.page_count > document.version.page_ids.length && (
-                <p className="text-lg text-muted">
+                <p className="text-base text-muted">
                   Showing the first {document.version.page_ids.length} of {document.version.page_count} pages. Download to see all pages.
                 </p>
               )}
@@ -109,39 +136,27 @@ export default async function DocumentPage({ params, searchParams }: PageProps<'
           )}
         </section>
 
-        <aside className="order-1 flex flex-col gap-4 lg:sticky lg:top-4 lg:order-2">
-          <div className="rounded-2xl border border-line bg-white p-5">
-            <h2 className="sr-only">Details</h2>
-            <dl className="flex flex-col gap-3">
-              {details
-                .filter(([, value]) => value)
-                .map(([term, value]) => (
-                  <div key={term}>
-                    <dt className="text-base font-semibold text-muted">{term}</dt>
-                    <dd className="text-lg break-words">{value}</dd>
-                  </div>
-                ))}
-            </dl>
-            <div className="mt-5 flex flex-col gap-3">
-              {document.file && (
-                <a href={`/api/documents/${document.id}/files/${document.file.id}/download`} className={buttonPrimary} download>
-                  <Icon name="download" className="size-6" />
-                  Download
-                </a>
-              )}
-              <form action={toggleFavorite.bind(null, document.id, !document.is_favorite)}>
-                <button type="submit" className={`${buttonSecondary} w-full`} aria-pressed={document.is_favorite}>
-                  <Icon name="star" className={`size-6 ${document.is_favorite ? 'fill-current text-brand' : ''}`} />
-                  {document.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
-                </button>
-              </form>
-            </div>
-          </div>
+        <aside className="order-1 flex flex-col gap-4 lg:sticky lg:top-24 lg:order-2" aria-label="Document information">
+          <section aria-labelledby="info-heading" className="rounded-lg border border-line bg-surface p-4">
+            <h2 id="info-heading" className="text-base font-bold">
+              Document information
+            </h2>
+            <InfoList items={details} />
+          </section>
+
+          {fileDetails.length > 0 && (
+            <section aria-labelledby="file-heading" className="rounded-lg border border-line bg-surface p-4">
+              <h2 id="file-heading" className="text-base font-bold">
+                File
+              </h2>
+              <InfoList items={fileDetails} />
+            </section>
+          )}
 
           {document.can_edit_details && options && editableDepartments && (
-            <details className="rounded-2xl border border-line bg-white p-5">
-              <summary className="min-h-12 cursor-pointer content-center text-lg font-semibold">Correct the details</summary>
-              <p className="mt-2 text-base text-muted">
+            <details className="rounded-lg border border-line bg-surface p-4">
+              <summary className="min-h-11 cursor-pointer content-center text-base font-semibold">Correct the details</summary>
+              <p className="mt-2 text-sm text-muted">
                 Changes are recorded with your name. The file itself is not changed.
               </p>
               <ActionForm
@@ -152,13 +167,13 @@ export default async function DocumentPage({ params, searchParams }: PageProps<'
                 labels={{ label: 'Title', department_id: 'Department', category_id: 'Category' }}
               >
                 <div>
-                  <label htmlFor="edit-label" className="mb-2 block text-lg font-semibold">
+                  <label htmlFor="edit-label" className={labelClass}>
                     Title
                   </label>
                   <input id="edit-label" name="label" defaultValue={document.label} maxLength={255} required className={fieldClass} />
                 </div>
                 <div>
-                  <label htmlFor="edit-department" className="mb-2 block text-lg font-semibold">
+                  <label htmlFor="edit-department" className={labelClass}>
                     Department
                   </label>
                   <select id="edit-department" name="department_id" defaultValue={department ? String(department.id) : ''} className={fieldClass}>
@@ -173,7 +188,7 @@ export default async function DocumentPage({ params, searchParams }: PageProps<'
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="edit-category" className="mb-2 block text-lg font-semibold">
+                  <label htmlFor="edit-category" className={labelClass}>
                     Category
                   </label>
                   <select
@@ -198,5 +213,22 @@ export default async function DocumentPage({ params, searchParams }: PageProps<'
         </aside>
       </div>
     </AppShell>
+  );
+}
+
+function InfoList({ items }: { items: [string, string | null][] }) {
+  return (
+    <dl className="mt-3 flex flex-col gap-2.5">
+      {items
+        .filter(([, value]) => value)
+        .map(([term, value]) => (
+          <div key={term}>
+            <dt className="text-sm text-muted">{term}</dt>
+            <dd dir="auto" className="text-base wrap-anywhere">
+              {value}
+            </dd>
+          </div>
+        ))}
+    </dl>
   );
 }

@@ -100,4 +100,28 @@ Remaining gaps (explicit; details in docs/unit-4-report.md)
   in Mayan's own screens without "must change".
 - Required Mayan settings documented for production, applied only in dev.
 
+## UI refresh — employee portal and administration (2026-11-11) — done, awaiting review
+
+Completed (details: docs/ui-refresh-report.md)
+- Skill applied: `frontend-ui-engineering`. Design tokens, persistent desktop
+  sidebar, compact header, accessible mobile menu, shared components.
+- Home: compact heading, search, one red Upload action, department cards
+  with subtle accents, real permission-filtered "Recently uploaded" (new
+  narrow endpoint `recafco/documents/recent/`, capped page size, no archive
+  count). Inactive departments moved to Search › Department.
+- Department/search toolbars, document list (table ≥1280px, cards below),
+  upload page (drag-and-drop with native input, title suggestion, truthful
+  audience and limits, honest progress), document page, My uploads,
+  Favorites, administration with marked "Access change" sections.
+- No business-rule change, no migration. Upload recovery, confidentiality,
+  permissions and audit behaviour unchanged (tested).
+- Tests: 13/13 unit, 178/178 integration. One assertion changed on purpose
+  (greeting panel removed). Before/after screenshots at 390/768/1440/1920px
+  in `docs/screenshots/ui-refresh/`, none with horizontal scrolling.
+
+Remaining limitations
+- No search on My uploads (endpoint has none); no "more" page for Recently
+  uploaded; axe-core and screen-reader checks not run; Arabic interface
+  language not implemented.
+
 Next unit: not started. Waiting for review.
