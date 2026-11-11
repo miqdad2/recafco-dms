@@ -1,18 +1,10 @@
 import Link from 'next/link';
 import { AppShell } from '@/components/app-shell';
 import { Icon } from '@/components/icons';
-import {
-  ConfidentialBadge,
-  DepartmentIcon,
-  Notice,
-  SampleBadge,
-  buttonPrimary,
-  fieldClass,
-  formatDay,
-  linkClass,
-} from '@/components/ui';
+import { StickyToolbar } from '@/components/sticky-toolbar';
+import { DepartmentIcon, Notice, SampleBadge, buttonPrimary, fieldClass, linkClass } from '@/components/ui';
 import { refreshRoles, requireSession, withMayan } from '@/lib/auth';
-import { type Department, type DocumentSummary, getDepartments, getRecentDocuments } from '@/lib/mayan';
+import { type Department, getDepartments } from '@/lib/mayan';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Departments' };
@@ -20,11 +12,7 @@ export const metadata = { title: 'Departments' };
 export default async function HomePage({ searchParams }: PageProps<'/'>) {
   const session = await requireSession();
   const welcome = (await searchParams).welcome === '1';
-  const [me, data, recent] = await Promise.all([
-    refreshRoles(session),
-    withMayan(() => getDepartments(session.token)),
-    withMayan(() => getRecentDocuments(session.token, 6)),
-  ]);
+  const [me, data] = await Promise.all([refreshRoles(session), withMayan(() => getDepartments(session.token))]);
   const myDepartments = new Set([...me.department_ids, ...me.controller_department_ids]);
   const hasSamples = data.departments.some((department) => department.is_sample);
 
@@ -36,15 +24,17 @@ export default async function HomePage({ searchParams }: PageProps<'/'>) {
         </Notice>
       )}
 
-      <div className="flex flex-col gap-4">
-        <div>
-          <h1 id="departments-heading" className="text-2xl font-bold tracking-tight sm:text-3xl">
-            Departments
-          </h1>
-          <p className="mt-1 text-base text-muted">Every employee can open general documents in every department.</p>
-        </div>
-        <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <form role="search" action="/search" className="flex flex-1 gap-2">
+      <div>
+        <h1 id="departments-heading" className="text-2xl font-bold tracking-tight sm:text-3xl">
+          Departments
+        </h1>
+        <p className="mt-1 text-base text-muted">Every employee can open general documents in every department.</p>
+      </div>
+
+      {/* Search and Upload stay visible while the department list scrolls. */}
+      <StickyToolbar label="Search and upload">
+        <div className="flex flex-wrap items-center gap-2 md:flex-nowrap md:gap-3">
+          <form role="search" action="/search" className="flex min-w-0 flex-[1_1_100%] gap-2 md:flex-1">
             <label htmlFor="home-search" className="sr-only">
               Search all documents
             </label>
@@ -64,13 +54,13 @@ export default async function HomePage({ searchParams }: PageProps<'/'>) {
             </button>
           </form>
           {session.canUpload && (
-            <Link href="/upload" className={buttonPrimary}>
+            <Link href="/upload" className={`${buttonPrimary} w-full md:w-auto`}>
               <Icon name="upload" className="size-5" />
               Upload documents
             </Link>
           )}
         </div>
-      </div>
+      </StickyToolbar>
 
       <section aria-labelledby="departments-heading" className="flex flex-col gap-3">
         {hasSamples && (
@@ -100,7 +90,6 @@ export default async function HomePage({ searchParams }: PageProps<'/'>) {
         )}
       </section>
 
-      <RecentlyUploaded documents={recent.results} />
     </AppShell>
   );
 }
@@ -131,39 +120,5 @@ function DepartmentCard({ department, mine }: { department: Department; mine: bo
         <Icon name="chevronRight" className="size-5" />
       </span>
     </Link>
-  );
-}
-
-function RecentlyUploaded({ documents }: { documents: DocumentSummary[] }) {
-  return (
-    <section aria-labelledby="recent-heading" className="flex flex-col gap-3">
-      <h2 id="recent-heading" className="text-lg font-bold">
-        Recently uploaded
-      </h2>
-      {documents.length === 0 ? (
-        <p className="text-base text-muted">No documents have been uploaded yet.</p>
-      ) : (
-        <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
-          {documents.map((document) => (
-            <li key={document.id}>
-              <Link
-                href={`/documents/${document.id}`}
-                className="flex flex-col gap-0.5 px-4 py-3 hover:bg-hover sm:flex-row sm:items-center sm:gap-4"
-              >
-                <span dir="auto" className="min-w-0 flex-1 text-base font-semibold wrap-anywhere">
-                  {document.label}
-                </span>
-                <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted sm:justify-end">
-                  {document.access === 'confidential' && <ConfidentialBadge />}
-                  <span>{[document.department, document.category].filter(Boolean).join(' · ')}</span>
-                  <span>{document.uploaded_by?.full_name ?? 'Uploader not recorded'}</span>
-                  <span className="whitespace-nowrap">{formatDay(document.datetime_created)}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }

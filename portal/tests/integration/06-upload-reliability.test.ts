@@ -118,7 +118,7 @@ describe('operation IDs make uploads idempotent', () => {
     // First attempt: the department does not exist yet, nothing is saved.
     expect((await extensionUpload(tA, fields)).status).toBe(400);
     const created = await json(tD, '/recafco/admin/departments/', 'POST', { name: department });
-    expect(created.status).toBe(201);
+    expect(created.status, JSON.stringify(created.body).slice(0, 300)).toBe(201);
     try {
       // Simulate a request whose worker died mid-way: "pending" for 20 minutes.
       dev('operation-make-stale', 'dev_employee_a', fields.operationId);

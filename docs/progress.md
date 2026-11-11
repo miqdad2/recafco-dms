@@ -163,4 +163,15 @@ Remaining limitations
   06+09: 30/30). Known keep-alive drop, trigger still not isolated; dev
   Mayan near its memory limit after Docker restart.
 
+## Sticky toolbar (2026-11-11) — done, awaiting review
+
+- Departments home: Recently uploaded section and its request removed
+  (extension endpoint kept, now unused by the portal).
+- Sticky search/category/Upload toolbar on home and department pages,
+  directly under the header; relaxed on short screens, 200% zoom and phones
+  where it would cover too much (department page on phones).
+- Verified at 390/768/1440/1920px, zoom, keyboard, focus, search state.
+  Tests: unit 13/13, integration 178/178 (after restarting the dev Mayan,
+  which was near its memory limit; one earlier run had one 403).
+
 Next unit: not started. Waiting for review.

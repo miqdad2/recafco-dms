@@ -1,0 +1,310 @@
+{
+  "results": [
+    {
+      "name": "01-home-top-phone",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "02-home-scrolled-phone",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "03-department-top-phone",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "04-department-scrolled-phone",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "01-home-top-tablet",
+      "width": 768,
+      "height": 1024,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "02-home-scrolled-tablet",
+      "width": 768,
+      "height": 1024,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "03-department-top-tablet",
+      "width": 768,
+      "height": 1024,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "04-department-scrolled-tablet",
+      "width": 768,
+      "height": 1024,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "01-home-top-desktop",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "02-home-scrolled-desktop",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "03-department-top-desktop",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "04-department-scrolled-desktop",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "01-home-top-wide",
+      "width": 1920,
+      "height": 1080,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "02-home-scrolled-wide",
+      "width": 1920,
+      "height": 1080,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "03-department-top-wide",
+      "width": 1920,
+      "height": 1080,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "04-department-scrolled-wide",
+      "width": 1920,
+      "height": 1080,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "05-focus-below-toolbar-desktop",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "06-department-search-result-desktop",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false
+    },
+    {
+      "name": "07-zoom-200-scrolled",
+      "width": 720,
+      "height": 450,
+      "scale": 2,
+      "horizontalScroll": false
+    },
+    {
+      "name": "07-phone-keyboard-open-scrolled",
+      "width": 390,
+      "height": 480,
+      "scale": 1,
+      "horizontalScroll": false
+    }
+  ],
+  "checks": {
+    "temporarilyReactivated": 14,
+    "home": {
+      "phone": {
+        "scrollY": 900,
+        "position": "sticky",
+        "stuck": true,
+        "barTop": 65,
+        "barBottom": 186,
+        "barHeight": 121,
+        "headerBottom": 65,
+        "overlapsHeader": false,
+        "background": "rgb(244, 245, 246)",
+        "viewportHeight": 844,
+        "pageHeight": 2854
+      },
+      "tablet": {
+        "scrollY": 610,
+        "position": "sticky",
+        "stuck": true,
+        "barTop": 65,
+        "barBottom": 130,
+        "barHeight": 65,
+        "headerBottom": 65,
+        "overlapsHeader": false,
+        "background": "rgb(244, 245, 246)",
+        "viewportHeight": 1024,
+        "pageHeight": 1634
+      },
+      "desktop": {
+        "scrollY": 414,
+        "position": "sticky",
+        "stuck": true,
+        "barTop": 65,
+        "barBottom": 130,
+        "barHeight": 65,
+        "headerBottom": 65,
+        "overlapsHeader": false,
+        "background": "rgb(244, 245, 246)",
+        "viewportHeight": 900,
+        "pageHeight": 1314
+      },
+      "wide": {
+        "scrollY": 234,
+        "position": "sticky",
+        "stuck": true,
+        "barTop": 65,
+        "barBottom": 130,
+        "barHeight": 65,
+        "headerBottom": 65,
+        "overlapsHeader": false,
+        "background": "rgb(244, 245, 246)",
+        "viewportHeight": 1080,
+        "pageHeight": 1314
+      }
+    },
+    "department": {
+      "phone": {
+        "scrollY": 1200,
+        "position": "static",
+        "stuck": false,
+        "barTop": -965,
+        "barBottom": -634,
+        "barHeight": 331,
+        "headerBottom": 65,
+        "overlapsHeader": true,
+        "background": "rgb(244, 245, 246)",
+        "viewportHeight": 844,
+        "pageHeight": 5182
+      },
+      "tablet": {
+        "scrollY": 1200,
+        "position": "sticky",
+        "stuck": true,
+        "barTop": 65,
+        "barBottom": 254,
+        "barHeight": 189,
+        "headerBottom": 65,
+        "overlapsHeader": false,
+        "background": "rgb(244, 245, 246)",
+        "viewportHeight": 1024,
+        "pageHeight": 2796
+      },
+      "desktop": {
+        "scrollY": 1102,
+        "position": "sticky",
+        "stuck": true,
+        "barTop": 65,
+        "barBottom": 194,
+        "barHeight": 129,
+        "headerBottom": 65,
+        "overlapsHeader": false,
+        "background": "rgb(244, 245, 246)",
+        "viewportHeight": 900,
+        "pageHeight": 2002
+      },
+      "wide": {
+        "scrollY": 922,
+        "position": "sticky",
+        "stuck": true,
+        "barTop": 65,
+        "barBottom": 194,
+        "barHeight": 129,
+        "headerBottom": 65,
+        "overlapsHeader": false,
+        "background": "rgb(244, 245, 246)",
+        "viewportHeight": 1080,
+        "pageHeight": 2002
+      }
+    },
+    "focus": {
+      "linkTop": 541,
+      "toolbarBottom": 194,
+      "visibleBelowToolbar": true,
+      "activeIsTarget": true
+    },
+    "searchFromToolbar": {
+      "url": "/departments/1?q=PROC&category=3",
+      "inputKept": "PROC",
+      "categoryKept": "Invoice",
+      "uploadHref": "/upload?department=1"
+    },
+    "zoom-200": {
+      "scrollY": 900,
+      "position": "static",
+      "stuck": false,
+      "barTop": -661,
+      "barBottom": -322,
+      "barHeight": 339,
+      "headerBottom": 65,
+      "overlapsHeader": true,
+      "background": "rgb(244, 245, 246)",
+      "viewportHeight": 450,
+      "pageHeight": 5166
+    },
+    "phone-keyboard-open": {
+      "scrollY": 900,
+      "position": "static",
+      "stuck": false,
+      "barTop": -665,
+      "barBottom": -334,
+      "barHeight": 331,
+      "headerBottom": 65,
+      "overlapsHeader": true,
+      "background": "rgb(244, 245, 246)",
+      "viewportHeight": 480,
+      "pageHeight": 5182
+    },
+    "tabOrder": [
+      "Skip to content",
+      "RECAFCO Documents – Departments",
+      "Departments",
+      "Search documents",
+      "My uploads",
+      "Favorites",
+      "EAEmployee AAccount menu",
+      "Departments",
+      "department-search",
+      "category",
+      "Search",
+      "Upload to this department",
+      "Search all departments",
+      "PEARLY-tmwbvjzmj"
+    ],
+    "restored": 14
+  }
+}

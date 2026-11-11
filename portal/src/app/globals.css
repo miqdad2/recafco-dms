@@ -42,6 +42,9 @@
 
 html {
   font-size: 100%; /* 16px; body copy uses 16–18px */
+  /* Keep focused and anchored content below the sticky app header (64px + 1px border)
+     and any sticky page toolbar (height set by StickyToolbar). */
+  scroll-padding-top: calc(4rem + 1px + var(--sticky-toolbar-height, 0px) + 0.75rem);
   -webkit-text-size-adjust: 100%;
 }
 

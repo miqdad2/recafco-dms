@@ -58,11 +58,11 @@ describe('recently uploaded documents (all departments)', () => {
     expect((await api(tokenA, '/recafco/documents/recent/?page_size=x')).status).toBe(400);
   });
 
-  it('the portal home shows the list without confidential documents for non-members', async () => {
+  it('the portal home no longer shows a recent list (removed on request) and never leaks confidential titles', async () => {
     const { session } = await portalLogin('a');
     const html = await (await portalGet('/', session as PortalSession)).text();
-    expect(html).toContain('id="recent-heading"');
-    expect(html).toContain(GENERAL_LABEL);
+    expect(html).toContain('id="departments-heading"');
+    expect(html).not.toContain('id="recent-heading"');
     expect(html).not.toContain(CONF_LABEL);
   });
 });

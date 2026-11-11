@@ -341,13 +341,6 @@ export async function mayanSend<T = unknown>(
   return { ok: response.ok, status: response.status, body: data as T };
 }
 
-/** Newest documents this employee may open, across all departments (small pages only). */
-export const getRecentDocuments = (token: string, pageSize = 8) =>
-  mayanJson<{ has_more: boolean; page: number; page_size: number; results: DocumentSummary[] }>(
-    token,
-    `/recafco/documents/recent/?page_size=${pageSize}`,
-  );
-
 export async function getMyUploads(token: string): Promise<DocumentSummary[]> {
   const data = await mayanJson<{ results: DocumentSummary[] }>(
     token,
