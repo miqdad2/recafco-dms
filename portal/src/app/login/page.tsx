@@ -11,25 +11,28 @@ export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
   if (await getSession()) redirect('/');
   const params = await searchParams;
   const notice = params.signedout
-    ? { icon: 'check', text: 'You have signed out.', tone: 'text-ok' }
+    ? { icon: 'check', text: 'You have signed out.', tone: 'border-ok/30 bg-ok-soft text-ok' }
     : params.ended
-      ? { icon: 'info', text: 'Please sign in to continue.', tone: 'text-info' }
+      ? { icon: 'info', text: 'Please sign in to continue.', tone: 'border-info/30 bg-info-soft text-info' }
       : null;
 
   return (
     <AuthLayout>
+      <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight">Welcome back</h1>
+      <p className="mt-1.5 text-base text-muted">Sign in to RECAFCO Documents.</p>
       {notice && (
-        <p role="status" className={`mb-4 inline-flex items-center gap-1.5 self-start text-sm font-semibold ${notice.tone}`}>
+        <p
+          role="status"
+          className={`mt-4 inline-flex items-center gap-2 self-start rounded-lg border px-3 py-1.5 text-sm font-semibold ${notice.tone}`}
+        >
           <Icon name={notice.icon} className="size-4 shrink-0" />
           {notice.text}
         </p>
       )}
-      <h1 className="text-2xl font-bold tracking-tight">Sign in</h1>
-      <p className="mt-1 mb-6 text-base text-muted">Use your RECAFCO account.</p>
-      <LoginForm />
-      <p className="mt-6 border-t border-line pt-4 text-sm text-muted">
-        Need help signing in? Contact your system administrator.
-      </p>
+      <div className="mt-7">
+        <LoginForm />
+      </div>
+      <p className="mt-7 border-t border-line pt-5 text-sm text-muted">For account help, contact your system administrator.</p>
     </AuthLayout>
   );
 }

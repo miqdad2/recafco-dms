@@ -57,6 +57,7 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
           id="current_password"
           name="current_password"
           autoComplete="current-password"
+          tall={temporary}
           describedBy={errors.current_password ? 'current_password-error' : undefined}
           invalid={Boolean(errors.current_password)}
         />
@@ -73,6 +74,7 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
           id="new_password"
           name="new_password"
           autoComplete="new-password"
+          tall={temporary}
           describedBy={errors.new_password ? 'new_password-hint new_password-error' : 'new_password-hint'}
           invalid={Boolean(errors.new_password)}
         />
@@ -86,12 +88,13 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
           id="new_password_again"
           name="new_password_again"
           autoComplete="new-password"
+          tall={temporary}
           describedBy={errors.new_password_again ? 'new_password_again-error' : undefined}
           invalid={Boolean(errors.new_password_again)}
         />
         {fieldError('new_password_again')}
       </div>
-      <button type="submit" className={`${buttonPrimary} w-full`} disabled={pending}>
+      <button type="submit" className={`${buttonPrimary} w-full ${temporary ? "min-h-[3.25rem]" : ""}`} disabled={pending}>
         {pending ? 'Saving…' : temporary ? 'Save my password and continue' : 'Change password'}
       </button>
     </form>

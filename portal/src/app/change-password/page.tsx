@@ -16,7 +16,7 @@ export default async function ChangePasswordPage() {
     // "Sign out" is offered (Mayan refuses every other request too).
     return (
       <AuthLayout>
-        <h1 className="text-2xl font-bold tracking-tight">Choose your password</h1>
+        <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight">Choose your password</h1>
         <p className="mt-1 text-base text-muted">
           Welcome, <strong className="text-ink">{session.fullName}</strong>. You signed in with a temporary password. Choose
           your own password to continue.

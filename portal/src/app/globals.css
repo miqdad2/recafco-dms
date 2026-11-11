@@ -12,6 +12,7 @@
   --color-brand-strong: #a00d25; /* hover / pressed */
   --color-brand-soft: #fcebee;
   --color-ink: #1f2328;          /* body text; 15.8:1 on white */
+  --color-charcoal: #343a40;     /* sign-in branding panel; white 11.5:1, 80% white 8.0:1 */
   --color-muted: #59616b;        /* secondary text; 6.3:1 on white, 5.9:1 on canvas */
   --color-line: #d8dbdf;         /* borders between surfaces */
   --color-line-strong: #8a9199;  /* form control borders; 3.3:1 on white */

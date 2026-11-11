@@ -174,7 +174,8 @@ describe('first sign-in with a temporary password', () => {
     expect(page.status).toBe(200);
     const html = await page.text();
     expect(html).toContain('Choose your password');
-    expect(html).toContain('Show<span class="sr-only"> password</span>');
+    // Eye-icon toggle inside the field, named for screen readers (login refine).
+    expect(html).toContain('aria-label="Show password"');
     expect(html).not.toContain('My uploads');
 
     const out = await portalLogout(session!);

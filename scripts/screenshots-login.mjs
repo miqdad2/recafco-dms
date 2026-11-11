@@ -238,7 +238,7 @@ try {
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   await fresh();
   await typeInto('#password', 'example-pass');
-  const toggleName = () => evaluate(`(() => { const b = document.querySelector('[aria-controls=password]'); return b ? b.textContent.trim().replace(/\\s+/g, ' ') + ' | type=' + document.querySelector('#password').type : null; })()`);
+  const toggleName = () => evaluate(`(() => { const b = document.querySelector('[aria-controls=password]'); return b ? (b.getAttribute('aria-label') || b.textContent.trim().replace(/\\s+/g, ' ')) + ' | type=' + document.querySelector('#password').type : null; })()`);
   checks.toggleBefore = await toggleName();
   await evaluate(`document.querySelector('[aria-controls=password]').click()`);
   await sleep(200);

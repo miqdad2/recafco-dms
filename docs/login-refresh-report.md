@@ -54,3 +54,33 @@ The first capture script tried wrong passwords on `dev_employee_a` and locked th
 Static checks and tests: typecheck, lint and build clean; unit tests 13/13; integration tests **178/178** (including sign-in, lockout, first-login password change, session and permission regressions).
 
 **Not verified:** real password-manager autofill. Only the attributes were checked; headless Edge has no saved passwords.
+
+## Refinement (branch `login-refine`)
+
+Screenshots are in `docs/screenshots/login-refresh/refined/`; `after/` is the previous version, for comparison.
+
+- **Card:** up to 1040px wide, split 42% branding / 58% form. Subtle border, a restrained two-layer shadow and the same 8px radius as the rest of the portal.
+- **Branding panel:**
+  - softer charcoal (`--color-charcoal: #343a40`; white text 11.5:1, 80% white 8.0:1);
+  - the architectural grid was removed;
+  - the original square logo sits undistorted in a white square. On desktop it is decorative (empty `alt`) because "RECAFCO Documents" is written beside it; on mobile it is `alt="RECAFCO"`.
+- **Branding layout:** logo and name at the top. "Your company documents, / in one place." is written as two deliberate lines, just above the middle of the panel, so the gap below the logo stays modest even on the taller first-login screen. "Find and share documents across departments." sits directly below.
+- **Typography:** one font throughout, the system sans-serif stack already used by the portal (`--font-sans`: system-ui, Segoe UI, …); no web fonts, so it works offline.
+- **Form:**
+  - "Welcome back" / "Sign in to RECAFCO Documents."; the signed-out or session-ended status sits below the subtitle as a compact bordered line with an icon (`role="status"`);
+  - the form column is vertically centred, max 392px;
+  - persistent labels; 52px fields and button;
+  - one full-width red "Sign in";
+  - "For account help, contact your system administrator."
+- **Password toggle:** an eye / eye-off icon button inside the field, `aria-label` "Show password" / "Hide password", `aria-controls`, a 44px target and the shared focus ring. It applies to every password field, including the admin reset and change-password forms.
+- **First-login "Choose your password":** same layout, 52px fields.
+- **One test assertion updated:** `09-local-accounts` looked for the old visible "Show" text. It now checks `aria-label="Show password"`, because the requested control is an icon.
+
+Checks on the refined design (real Edge, `scripts/screenshots-login.mjs`):
+- 390, 768, 1440 and 1920px, 1440×600, phone 390×480 with the keyboard open, and 200% zoom: no horizontal scrolling, nothing clipped.
+- Tab order: username → password → eye toggle, with a visible focus ring.
+- Show/Hide name and field type switch correctly.
+- `autocomplete` attributes are correct and nothing is prefilled.
+- Empty-field inline errors work. After a wrong password the username is kept and the password is not in the HTML.
+- Lockout message, "Signing in…" with the button disabled, and the first-login flow all work.
+- Typecheck, lint and build clean; unit tests 13/13; integration tests **178/178** (sign-in, lockout, first-login, session and permission regressions).

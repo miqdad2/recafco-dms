@@ -111,6 +111,12 @@ const paths: Record<string, React.ReactNode> = {
       <circle cx="12" cy="12" r="2.8" />
     </>
   ),
+  eyeOff: (
+    <>
+      <path d="M10.6 5.6A9.6 9.6 0 0 1 12 5.5C18 5.5 21.5 12 21.5 12a17 17 0 0 1-3 3.8M6.6 6.7C3.9 8.5 2.5 12 2.5 12S6 18.5 12 18.5c1.8 0 3.3-.5 4.6-1.3" />
+      <path d="M9.9 9.9a2.8 2.8 0 0 0 4.2 4.2M3.5 3.5l17 17" />
+    </>
+  ),
   chevronRight: <path d="m9 5 7 7-7 7" />,
   chevronDown: <path d="m5 9 7 7 7-7" />,
   lock: (

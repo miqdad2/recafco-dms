@@ -49,7 +49,7 @@ export function LoginForm() {
           defaultValue={state.username}
           aria-invalid={usernameError ? true : undefined}
           aria-describedby={usernameError ? 'username-error' : undefined}
-          className={fieldClass}
+          className={`${fieldClass} min-h-[3.25rem]`}
         />
         {usernameError && (
           <p id="username-error" className={errorTextClass}>
@@ -65,6 +65,7 @@ export function LoginForm() {
           id="password"
           name="password"
           autoComplete="current-password"
+          tall
           invalid={Boolean(passwordError)}
           describedBy={passwordError ? 'password-error' : undefined}
         />
@@ -74,7 +75,7 @@ export function LoginForm() {
           </p>
         )}
       </div>
-      <button type="submit" className={`${buttonPrimary} w-full`} disabled={pending} aria-disabled={pending}>
+      <button type="submit" className={`${buttonPrimary} min-h-[3.25rem] w-full`} disabled={pending} aria-disabled={pending}>
         {pending ? 'Signing in…' : 'Sign in'}
       </button>
       {(usernameError || passwordError) && (

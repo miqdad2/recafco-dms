@@ -139,4 +139,14 @@ Remaining limitations
 - Not verified: real password-manager autofill (attributes checked only).
   No temporary-password expiry exists to restyle.
 
+## Login refine (2026-11-11) — done, awaiting review
+
+- 1040px card, 42/58 split, softer charcoal (#343a40), grid removed,
+  undistorted logo in a white square, two-line headline above centre.
+- "Welcome back" / "Sign in to RECAFCO Documents.", compact status under
+  the subtitle, 52px fields, eye-icon toggle inside the field (all password
+  fields), new help text. Same layout for first-login password change.
+- UI only. Tests: 13/13 unit, 178/178 integration (one assertion updated
+  for the icon toggle). Screenshots: docs/screenshots/login-refresh/refined/.
+
 Next unit: not started. Waiting for review.
