@@ -216,4 +216,12 @@ Remaining limitations
   Sidebar, login and other branding unchanged. Tests: typecheck, lint, build,
   unit 13/13.
 
+- Revised: favicon.ico is now a white circle (transparent outside, faint
+  #d8dbdf ring so it shows on white tabs) with the whole logo inside; logo
+  width 76% of the diameter so its corners sit just inside the circle. Drawn
+  at 1024 px and scaled down. apple-icon.png stays a white square (iOS masks
+  it itself and would turn transparent corners black). Verified: served file
+  matches, Edge decodes all sizes, no 4xx among 122 responses. Preview on
+  light and dark: docs/screenshots/favicon/round-preview.png.
+
 Next unit: not started. Waiting for review.
