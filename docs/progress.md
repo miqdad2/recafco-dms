@@ -184,4 +184,22 @@ Remaining limitations
 - Verified at 1440/820/390/360px: no horizontal scroll, menu and nav links
   unchanged. Tests: typecheck, lint, unit 13/13.
 
+## Department cards (2026-11-11) — done, awaiting review
+
+- Departments home cards: white, 12px radius, 20px padding; 48px soft icon,
+  18px semibold name (wraps, never clipped; dir=auto for Arabic), count,
+  small separate SAMPLE / Your department badges; outlined neutral
+  "View documents" action (44px) pinned to the card bottom so actions align
+  across each row. Names unchanged (dev suffixes kept).
+- Each card is one link; the action is decoration (aria-hidden), so one tab
+  stop per card and the link name starts with the department name. Hover:
+  border and soft shadow only, no movement. Default focus outline.
+- Grid columns from available width (min 17rem): 3 on desktop, 2 on tablets
+  and at 200% zoom, 1 on phones. Sticky toolbar and navigation unchanged.
+- Verified at 1440/1280/820/390/320px and 200% zoom, with long English,
+  Arabic and unbroken names and 0 to 1,048,576 counts (injected into the
+  rendered page only; no data changed). Keyboard: Tab reaches the card,
+  Enter opens it. Screenshots: docs/screenshots/department-cards/.
+  Tests: typecheck, lint, unit 13/13, integration 04+10: 28/28.
+
 Next unit: not started. Waiting for review.

@@ -71,7 +71,9 @@ export default async function HomePage({ searchParams }: PageProps<'/'>) {
         {data.departments.length === 0 ? (
           <p className="rounded-lg border border-line bg-surface p-5 text-base">No departments have been set up yet. Please contact IT.</p>
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          // Columns from available width, not viewport: 3 on wide content areas,
+          // 2 on tablets and 200% zoom, 1 on phones. Never squeezed below 17rem.
+          <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))] gap-4">
             {data.departments.map((department) => (
               <li key={department.id}>
                 <DepartmentCard department={department} mine={myDepartments.has(department.id)} />
@@ -94,30 +96,44 @@ export default async function HomePage({ searchParams }: PageProps<'/'>) {
   );
 }
 
+/*
+ * One card = one link. The "View documents" box is decoration inside the link
+ * (aria-hidden, not focusable), so keyboard users get a single stop per card
+ * and the link is announced as "<department> <count> [badges]". Cards in a
+ * row share the row height; mt-auto pins the action to the bottom.
+ */
 function DepartmentCard({ department, mine }: { department: Department; mine: boolean }) {
   const count = department.document_count ?? 0;
   const countText = count === 0 ? 'No documents yet' : `${count.toLocaleString('en-GB')} ${count === 1 ? 'document' : 'documents'}`;
   return (
     <Link
       href={`/departments/${department.id}`}
-      className="group flex h-full items-center gap-4 rounded-lg border border-line bg-surface p-4 hover:border-line-strong hover:bg-hover"
+      className="group flex h-full flex-col gap-5 rounded-xl border border-line bg-surface p-5 transition-[border-color,box-shadow] duration-150 hover:border-line-strong hover:shadow-[0_2px_8px_rgb(31_35_40/0.08)] motion-reduce:transition-none"
     >
-      <DepartmentIcon id={department.id} icon={department.icon} />
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-lg font-semibold wrap-anywhere">{department.name}</span>
-        <span className="text-sm text-muted">{countText}</span>
-        {(department.is_sample || mine) && (
-          <span className="mt-1 flex flex-wrap gap-1.5">
-            {mine && (
-              <span className="inline-flex items-center rounded border border-line px-1.5 text-xs font-semibold text-ink">Your department</span>
-            )}
-            {department.is_sample && <SampleBadge />}
+      <span className="flex items-start gap-4">
+        <DepartmentIcon id={department.id} icon={department.icon} />
+        <span className="flex min-w-0 flex-1 flex-col pt-0.5">
+          <span dir="auto" className="text-left text-lg leading-snug font-semibold wrap-break-word">
+            {department.name}
           </span>
-        )}
+          <span className="mt-1 text-sm text-muted">{countText}</span>
+          {(department.is_sample || mine) && (
+            <span className="mt-2.5 flex flex-wrap gap-1.5">
+              {mine && (
+                <span className="inline-flex items-center rounded border border-line px-1.5 text-xs font-semibold text-ink">Your department</span>
+              )}
+              {department.is_sample && <SampleBadge />}
+            </span>
+          )}
+        </span>
       </span>
-      <span className="flex shrink-0 items-center gap-1 text-sm font-semibold text-muted group-hover:text-ink">
-        Open
-        <Icon name="chevronRight" className="size-5" />
+      <span
+        aria-hidden="true"
+        data-card-action
+        className="mt-auto flex min-h-11 items-center justify-between rounded-lg border border-line-strong px-4 text-base font-semibold text-ink group-hover:bg-hover"
+      >
+        View documents
+        <Icon name="arrowRight" className="size-5" />
       </span>
     </Link>
   );

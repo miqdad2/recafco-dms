@@ -132,6 +132,7 @@ const paths: Record<string, React.ReactNode> = {
     </>
   ),
   // Interface icons (not offered as department icons).
+  arrowRight: <path d="M4.5 12h15M13.5 6l6 6-6 6" />,
   info: (
     <>
       <circle cx="12" cy="12" r="9" />
