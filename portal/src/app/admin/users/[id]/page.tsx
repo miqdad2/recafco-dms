@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ActionForm } from '@/components/action-form';
-import { Notice, buttonPrimary, buttonSecondary, fieldClass, formatDate } from '@/components/ui';
+import { Notice, buttonPrimary, buttonSecondary, formatDate } from '@/components/ui';
 import { type AdminDepartment, type AdminUser, adminGet, adminGetOrNull, requireAdmin } from '@/lib/admin';
 import { parseId } from '@/lib/route-helpers';
-import { setUserActive, setUserPassword, updateUser } from '../../actions';
+import { PasswordInput } from '@/components/password-input';
+import { resetUserPassword, setUserActive, updateUser } from '../../actions';
 import { AdminShell, NotAuthorized } from '../../admin-shell';
 import { USER_LABELS, UserFields } from '../user-fields';
 
@@ -40,6 +41,17 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
         Username <strong className="text-ink">{user.username}</strong> · {user.is_active ? 'Active' : 'Deactivated'} · Last
         sign-in {user.last_login ? formatDate(user.last_login) : 'never'}
       </p>
+      {user.must_change_password && (
+        <Notice tone="info" role="status">
+          This person has a temporary password and must choose their own at their next sign-in.
+        </Notice>
+      )}
+      {user.locked_out && (
+        <Notice tone="error" role="status">
+          Sign-in is locked after too many wrong passwords. It unlocks by itself after 15 minutes, or reset the password
+          below to unlock it now.
+        </Notice>
+      )}
 
       <section aria-labelledby="details" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
         <h2 id="details" className="mb-4 text-xl font-bold">
@@ -79,29 +91,41 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
       <div className="grid gap-6 lg:grid-cols-2">
         <section aria-labelledby="password" className="rounded-2xl border border-line bg-white p-5 sm:p-6">
           <h2 id="password" className="text-xl font-bold">
-            Set a new password
+            Reset password
           </h2>
-          <ActionForm
-            action={setUserPassword.bind(null, user.id)}
-            resetOnSuccess
-            className="mt-4 flex flex-col gap-4"
-            submit="Save new password"
-            submitClassName={buttonSecondary}
-            labels={USER_LABELS}
-          >
-            <div>
-              <label htmlFor="new-password" className="mb-2 block text-lg font-semibold">
-                New password
-              </label>
-              <input id="new-password" name="password" type="password" required minLength={10} autoComplete="new-password" className={fieldClass} />
-            </div>
-            <div>
-              <label htmlFor="new-password-again" className="mb-2 block text-lg font-semibold">
-                Type it again
-              </label>
-              <input id="new-password-again" name="password_again" type="password" required minLength={10} autoComplete="new-password" className={fieldClass} />
-            </div>
-          </ActionForm>
+          {isSelf ? (
+            <p className="mt-2 text-lg text-muted">
+              To change your own password, use{' '}
+              <Link href="/change-password" className="font-semibold text-brand underline underline-offset-4">
+                Change password
+              </Link>
+              .
+            </p>
+          ) : (
+            <ActionForm
+              action={resetUserPassword.bind(null, user.id)}
+              resetOnSuccess
+              className="mt-2 flex flex-col gap-4"
+              submit="Reset password"
+              submitClassName={buttonSecondary}
+              labels={USER_LABELS}
+              confirm={`Reset the password of ${user.full_name}? They are signed out everywhere at once.`}
+            >
+              <p className="text-lg text-muted">
+                Use this when someone forgot their password. They are signed out everywhere and must choose a new password
+                when they sign in with the temporary one.
+              </p>
+              <div>
+                <label htmlFor="new-password" className="mb-2 block text-lg font-semibold">
+                  Temporary password
+                </label>
+                <PasswordInput id="new-password" name="password" autoComplete="off" describedBy="new-password-hint" />
+                <p id="new-password-hint" className="mt-1 text-base text-muted">
+                  Anything simple, for example “123”. Tell it to the person privately.
+                </p>
+              </div>
+            </ActionForm>
+          )}
         </section>
 
         <section aria-labelledby="status" className="rounded-2xl border border-line bg-white p-5 sm:p-6">

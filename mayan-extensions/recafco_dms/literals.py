@@ -82,7 +82,23 @@ ADMIN_PAGE_SIZE = 25
 FAVORITES_LIMIT = 100
 QUERY_MAX_LENGTH = 200
 
-PASSWORD_MIN_LENGTH = 10
+# Accounts and passwords (see passwords.py).
+# A temporary password is set by an administrator and is good only until
+# the person signs in: they must then choose their own. It may be as simple
+# as "123". A personal password needs at least 6 characters; no character
+# types are required.
+TEMPORARY_PASSWORD_MIN_LENGTH = 1
+PASSWORD_MIN_LENGTH = 6
+# Upper bound so a huge "password" cannot tie up the password hasher.
+PASSWORD_MAX_LENGTH = 128
+USERNAME_MAX_LENGTH = 150
+# Sign-in rate limit per username (not per IP address: the whole office
+# reaches the portal from shared addresses). Repeated failures additionally
+# lock the username through Mayan's lockout (django-axes), which must be
+# configured with AUTHENTICATION_LOCKOUT_PARAMETERS = ['username'].
+LOGIN_RATE_PER_USERNAME_PER_MINUTE = 10
+PASSWORD_REASON_CREATED = 'created'
+PASSWORD_REASON_ADMIN_RESET = 'admin_reset'
 
 # Upload operations (see uploads.py). A pending operation older than this
 # is a dead attempt (Gunicorn kills a request after 120 s), so a retry may

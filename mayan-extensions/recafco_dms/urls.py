@@ -2,6 +2,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.urls import re_path
 
 from . import admin_api_views as admin
+from .auth_api_views import APIPortalLoginView, APIPortalPasswordChangeView
 from .api_views import (
     APIPortalDepartmentDetailView, APIPortalDepartmentDocumentsView,
     APIPortalDepartmentListView, APIPortalDocumentDetailsView,
@@ -74,6 +75,14 @@ api_urls = [
         route=r'^recafco/documents/{}/favorite/$'.format(ID.format('document_id')),
         name='recafco-portal-document-favorite',
         view=APIPortalDocumentFavoriteView.as_view()
+    ),
+    re_path(
+        route=r'^recafco/auth/login/$', name='recafco-portal-login',
+        view=APIPortalLoginView.as_view()
+    ),
+    re_path(
+        route=r'^recafco/auth/password/$', name='recafco-portal-password-change',
+        view=APIPortalPasswordChangeView.as_view()
     ),
     re_path(
         route=r'^recafco/auth/token/revoke/$',

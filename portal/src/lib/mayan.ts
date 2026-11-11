@@ -14,6 +14,17 @@ export class SessionEndedError extends Error {
   }
 }
 
+/**
+ * Mayan refused the request because the account signed in with a temporary
+ * password and must choose its own first. The token itself still works for
+ * changing the password and signing out.
+ */
+export class PasswordChangeRequiredError extends Error {
+  constructor() {
+    super('The account must replace its temporary password first.');
+  }
+}
+
 export class MayanError extends Error {
   constructor(
     public status: number,
@@ -101,14 +112,27 @@ export async function mayanRaw(
   }
 }
 
+async function isPasswordChangeRequired(response: Response): Promise<boolean> {
+  if (response.status !== 403) return false;
+  try {
+    const body = (await response.clone().json()) as { code?: unknown };
+    return body?.code === 'password_change_required';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Mayan answers both "bad token / disabled user" and "no permission" with
  * 401 or 403. On those statuses, ask the auth-only endpoint whether the
  * token itself still works. If it does not, end every portal session that
- * uses it.
+ * uses it. A pending password change is reported separately: the token is
+ * valid but may only be used to change the password or sign out.
  */
-async function checkTokenAfterDenied(token: string): Promise<void> {
+async function checkTokenAfterDenied(token: string, response: Response): Promise<void> {
+  if (await isPasswordChangeRequired(response)) throw new PasswordChangeRequiredError();
   const probe = await mayanRaw(token, '/recafco/me/');
+  if (await isPasswordChangeRequired(probe)) throw new PasswordChangeRequiredError();
   if (probe.status === 401 || probe.status === 403) {
     deleteSessionsForToken(token);
     throw new SessionEndedError();
@@ -125,7 +149,7 @@ export async function mayanJson<T>(
     return (response.status === 204 ? null : await response.json()) as T;
   }
   if (response.status === 401 || response.status === 403) {
-    await checkTokenAfterDenied(token);
+    await checkTokenAfterDenied(token, response);
   }
   let body: unknown = null;
   try {
@@ -140,25 +164,87 @@ export async function mayanJson<T>(
 export async function mayanStream(token: string, path: string): Promise<Response> {
   const response = await mayanRaw(token, path, { headers: { Accept: '*/*' } });
   if (response.status === 401 || response.status === 403) {
-    await checkTokenAfterDenied(token);
+    await checkTokenAfterDenied(token, response);
   }
   return response;
 }
 
-export async function obtainToken(
-  username: string,
-  password: string,
-): Promise<string | null> {
-  const body = new URLSearchParams({ username, password });
-  const response = await fetch(url('/auth/token/obtain/'), {
+export type SignInResult =
+  | {
+      ok: true;
+      token: string;
+      username: string;
+      fullName: string;
+      mustChange: boolean;
+      canUpload: boolean;
+      isAdmin: boolean;
+    }
+  | { ok: false; reason: 'invalid' | 'locked' | 'throttled' | 'unavailable'; message?: string };
+
+/**
+ * Signs in through the RECAFCO extension, which checks the password with
+ * Django's authenticate() (Mayan's own user table and lockout), compares
+ * usernames without regard to case, and says whether the account must
+ * replace a temporary password.
+ */
+export async function signIn(username: string, password: string): Promise<SignInResult> {
+  let response: Response;
+  try {
+    response = await fetch(url('/recafco/auth/login/'), {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      cache: 'no-store',
+    });
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+  let data: Record<string, unknown> = {};
+  try {
+    data = (await response.json()) as Record<string, unknown>;
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+  if (response.ok && typeof data.token === 'string') {
+    return {
+      ok: true,
+      token: data.token,
+      username: String(data.username ?? username),
+      fullName: String(data.full_name ?? data.username ?? username),
+      mustChange: data.must_change_password === true,
+      canUpload: data.can_upload === true,
+      isAdmin: data.is_admin === true,
+    };
+  }
+  const message = typeof data.detail === 'string' ? data.detail : undefined;
+  if (response.status === 429) {
+    return { ok: false, reason: data.code === 'locked' ? 'locked' : 'throttled', message };
+  }
+  if (response.status === 400) return { ok: false, reason: 'invalid' };
+  return { ok: false, reason: 'unavailable' };
+}
+
+/** Changes the signed-in person's own password. Returns Mayan's new token. */
+export async function changeOwnPassword(
+  token: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<SendResult<{ token?: string } & Record<string, unknown>>> {
+  const response = await mayanRaw(token, '/recafco/auth/password/', {
     method: 'POST',
-    body,
-    headers: { Accept: 'application/json' },
-    cache: 'no-store',
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    headers: { 'Content-Type': 'application/json' },
   });
-  if (!response.ok) return null;
-  const data = (await response.json()) as { token?: string };
-  return data.token ?? null;
+  if (response.status === 401 || response.status === 403) {
+    await checkTokenAfterDenied(token, response);
+  }
+  let data: Record<string, unknown> = {};
+  try {
+    data = (await response.json()) as Record<string, unknown>;
+  } catch {
+    data = {};
+  }
+  return { ok: response.ok, status: response.status, body: data };
 }
 
 export async function revokeToken(token: string): Promise<boolean> {
@@ -244,7 +330,7 @@ export async function mayanSend<T = unknown>(
     headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
   });
   if (response.status === 401 || response.status === 403) {
-    await checkTokenAfterDenied(token);
+    await checkTokenAfterDenied(token, response);
   }
   let data: unknown = null;
   try {
@@ -304,7 +390,7 @@ export async function getUploadOperation(token: string, operationId: string): Pr
   const response = await mayanRaw(token, `/recafco/uploads/operations/${operationId}/`);
   if (response.status === 404) return { operation_id: operationId, state: 'not_found' };
   if (response.status === 401 || response.status === 403) {
-    await checkTokenAfterDenied(token);
+    await checkTokenAfterDenied(token, response);
   }
   if (!response.ok) throw new MayanError(response.status, null);
   return (await response.json()) as UploadOperation;

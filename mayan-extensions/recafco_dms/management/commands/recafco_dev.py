@@ -26,7 +26,11 @@ from ...literals import (
 from ...permission_model import READ_PERMISSIONS
 from ...services import create_document, get_upload_options
 from ...fixture_pdf import make_pdf
-from ...models import ConfidentialAccessGroup, Department, PortalUpload
+from ...models import (
+    ConfidentialAccessGroup, Department, PasswordState, PortalUpload
+)
+from ...passwords import _reset_lockout
+from mayan.apps.authentication.lockouts import is_user_locked
 
 # username: (password environment variable, first name, last name, groups)
 DEV_USERS = {
@@ -47,6 +51,12 @@ DEV_USERS = {
         (GROUP_EMPLOYEES_NAME, GROUP_ADMINISTRATORS_NAME)
     )
 }
+
+
+def _plain(value):
+    if isinstance(value, (bool, int, float, str, list, tuple, type(None))):
+        return value
+    return str(value)
 
 
 class Command(BaseCommand):
@@ -121,6 +131,22 @@ class Command(BaseCommand):
         sub.add_argument('operation_id')
 
         sub = subparsers.add_parser(
+            'password-info',
+            help=(
+                'Hash algorithm and pending-change flag of a user. Never '
+                'prints the password or the hash.'
+            )
+        )
+        sub.add_argument('username')
+        sub = subparsers.add_parser(
+            'sessions', help='Number of live Mayan web sessions of a user.'
+        )
+        sub.add_argument('username')
+        subparsers.add_parser(
+            'lockout-settings', help='Effective Mayan lockout settings.'
+        )
+
+        sub = subparsers.add_parser(
             'find-label',
             help=(
                 'Count ALL documents (any type, including trashed) whose '
@@ -162,6 +188,9 @@ class Command(BaseCommand):
             user.set_password(password)
             user.save()
             user.groups.set(Group.objects.filter(name__in=groups))
+            # Dev users have personal passwords and are never left locked.
+            PasswordState.objects.filter(user=user).delete()
+            _reset_lockout(username=username)
             result[username] = {'groups': sorted(groups), 'id': user.pk}
         return result
 
@@ -318,6 +347,45 @@ class Command(BaseCommand):
             'documents': [operation.document_id for operation in operations],
             'states': [operation.state for operation in operations]
         }
+
+    def do_password_info(self, options):
+        user = self.get_user(options['username'])
+        if '$' in user.password:
+            algorithm = user.password.split('$', 1)[0]
+        else:
+            algorithm = 'unusable'
+        state = PasswordState.objects.filter(user=user).first()
+        return {
+            'algorithm': algorithm,
+            'locked_out': is_user_locked(user=user),
+            'must_change': bool(state and state.must_change),
+            'reason': state.reason if state else None,
+            'username': user.username
+        }
+
+    def do_sessions(self, options):
+        from django.contrib.sessions.models import Session
+        from django.utils import timezone
+
+        user = self.get_user(options['username'])
+        count = 0
+        for session in Session.objects.filter(expire_date__gt=timezone.now()):
+            if str(session.get_decoded().get('_auth_user_id')) == str(user.pk):
+                count += 1
+        return {'count': count}
+
+    def do_lockout_settings(self, options):
+        from django.conf import settings
+
+        result = {
+            name: _plain(getattr(settings, name, None)) for name in (
+                'AXES_COOLOFF_TIME', 'AXES_ENABLED', 'AXES_FAILURE_LIMIT',
+                'AXES_LOCKOUT_PARAMETERS', 'AXES_RESET_ON_SUCCESS'
+            )
+        }
+        result['AUTHENTICATION_BACKENDS'] = list(settings.AUTHENTICATION_BACKENDS)
+        result['MIDDLEWARE'] = list(settings.MIDDLEWARE)
+        return result
 
     def do_superuser_id(self, options):
         user = get_user_model().objects.filter(is_superuser=True).order_by('pk').first()

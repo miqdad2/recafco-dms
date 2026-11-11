@@ -288,11 +288,13 @@ async function submitActionForm(page: string, cookie: string | null, extra: Reco
   });
 }
 
-export async function portalLogin(user: UserKey, password?: string): Promise<{ response: Response; session: PortalSession | null }> {
-  const response = await submitActionForm('/login', null, {
-    username: users[user].username,
-    password: password ?? users[user].password,
-  });
+export function portalLogin(user: UserKey, password?: string): Promise<{ response: Response; session: PortalSession | null }> {
+  return portalLoginAs(users[user].username, password ?? users[user].password);
+}
+
+/** Signs in to the portal with any username and password. */
+export async function portalLoginAs(username: string, password: string): Promise<{ response: Response; session: PortalSession | null }> {
+  const response = await submitActionForm('/login', null, { username, password });
   const setCookie = response.headers.get('set-cookie') ?? '';
   const match = /recafco_portal_session=([^;]+)/.exec(setCookie);
   return {
@@ -341,8 +343,61 @@ export function isDeniedOrEmpty(result: ApiResult): boolean {
 export const isListPath = (path: string) =>
   /\/(files|versions|pages|metadata|cabinets|tags|comments|duplicates|events)\/$/.test(path);
 
+/** HTTP Basic request to the Mayan API (direct access without a token). */
+export async function basicApi(username: string, password: string, pathname: string) {
+  const response = await fetch(`${MAYAN}${pathname}`, {
+    headers: { Accept: 'application/json', Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}` },
+    redirect: 'manual',
+  });
+  let body: any = null;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+  return { status: response.status, body };
+}
+
+export const MAYAN_WEB = MAYAN.replace(/\/api\/v4$/, '');
+
+function cookieValue(setCookie: string, name: string): string | null {
+  const match = new RegExp(`(?:^|[ ,])${name}=([^;]+)`).exec(setCookie);
+  return match ? match[1] : null;
+}
+
+/**
+ * Signs in to Mayan's own web interface (not the portal), the way a browser
+ * does. Returns the session and CSRF cookies, or null if refused.
+ */
+export async function mayanWebLogin(username: string, password: string): Promise<{ cookie: string; csrf: string } | null> {
+  const page = await fetch(`${MAYAN_WEB}/authentication/login/`, { redirect: 'manual' });
+  const html = await page.text();
+  const csrfCookie = cookieValue(page.headers.get('set-cookie') ?? '', 'csrftoken');
+  const formToken = /name="csrfmiddlewaretoken" value="([^"]+)"/.exec(html)?.[1];
+  if (!csrfCookie || !formToken) throw new Error('Mayan login page has no CSRF token.');
+  const response = await fetch(`${MAYAN_WEB}/authentication/login/`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      Cookie: `csrftoken=${csrfCookie}`,
+      Referer: `${MAYAN_WEB}/authentication/login/`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({ csrfmiddlewaretoken: formToken, username, password, next: '' }),
+  });
+  const setCookie = response.headers.get('set-cookie') ?? '';
+  const session = cookieValue(setCookie, 'sessionid');
+  if (response.status !== 302 || !session) return null;
+  const csrf = cookieValue(setCookie, 'csrftoken') ?? csrfCookie;
+  return { cookie: `sessionid=${session}; csrftoken=${csrf}`, csrf };
+}
+
+export function mayanWebGet(path: string, login: { cookie: string }) {
+  return fetch(`${MAYAN_WEB}${path}`, { headers: { Cookie: login.cookie }, redirect: 'manual' });
+}
+
 /** JSON request to the Mayan API (admin and other JSON endpoints). */
-export function json<T = any>(token: string | null, pathname: string, method: 'GET' | 'POST' | 'PATCH' | 'DELETE' = 'GET', body?: unknown) {
+export function json<T = any>(token: string | null, pathname: string, method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' = 'GET', body?: unknown) {
   return api<T>(token, pathname, {
     method,
     body: body === undefined ? undefined : JSON.stringify(body),

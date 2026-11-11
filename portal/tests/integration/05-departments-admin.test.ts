@@ -334,7 +334,8 @@ describe('RECAFCO administration', () => {
   it('creates a user with roles and departments, who can then sign in; deactivation and reactivation work', async () => {
     const username = `u_${RUN}`;
     const password = `Pw-${RUN}-${Math.random().toString(36).slice(2)}`;
-    const weak = await json(tD, '/recafco/admin/users/', 'POST', { username, password: 'short' });
+    // Unit 4: the first password is temporary (anything non-empty) and must be replaced.
+    const weak = await json(tD, '/recafco/admin/users/', 'POST', { username, password: '' });
     expect(weak.status).toBe(400);
     const created = await json(tD, '/recafco/admin/users/', 'POST', {
       username, password, first_name: 'Test', last_name: RUN, is_employee: true, department_ids: [deptA.id],
@@ -343,7 +344,11 @@ describe('RECAFCO administration', () => {
     expect(created.body).toMatchObject({ is_employee: true, is_administrator: false, department_ids: [deptA.id], is_active: true });
     expect((await json(tD, '/recafco/admin/users/', 'POST', { username: username.toUpperCase(), password })).status).toBe(400);
 
-    const obtain = () => api(null, '/auth/token/obtain/', { method: 'POST', body: new URLSearchParams({ username, password }) });
+    const first = await json(null, '/recafco/auth/login/', 'POST', { username, password });
+    expect(first.body.must_change_password).toBe(true);
+    const personal = `${password}-own`;
+    expect((await json(first.body.token, '/recafco/auth/password/', 'POST', { current_password: password, new_password: personal })).status).toBe(200);
+    const obtain = () => api(null, '/auth/token/obtain/', { method: 'POST', body: new URLSearchParams({ username, password: personal }) });
     const token = (await obtain()).body.token as string;
     expect((await api(token, '/recafco/me/')).body).toMatchObject({ can_upload: true, department_ids: [deptA.id], is_admin: false });
     expect((await deptDocs(token, deptA.id)).results.map((doc) => doc.id)).toContain(ids.a1);

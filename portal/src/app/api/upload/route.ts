@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { config } from '@/lib/config';
-import { getMe, getUploadOperation, mayanRaw, SessionEndedError } from '@/lib/mayan';
+import { getMe, getUploadOperation, mayanRaw, PasswordChangeRequiredError, SessionEndedError } from '@/lib/mayan';
 import { deleteSessionsForToken } from '@/lib/session-store';
-import { isSameOrigin, jsonError, routeSession } from '@/lib/route-helpers';
+import { isSameOrigin, jsonError, routeSession, passwordChangeRequired } from '@/lib/route-helpers';
 
 const OPERATION_ID = /^[A-Za-z0-9-]{16,64}$/;
 
@@ -21,6 +21,7 @@ const OPERATION_ID = /^[A-Za-z0-9-]{16,64}$/;
 export async function POST(request: NextRequest) {
   const session = routeSession(request);
   if (!session) return jsonError(401, 'Please sign in again.');
+  if (session.mustChange) return passwordChangeRequired();
   if (!isSameOrigin(request)) return jsonError(403, 'Request blocked.');
 
   const contentType = request.headers.get('content-type') ?? '';
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
         deleteSessionsForToken(session.token);
         return jsonError(401, 'Please sign in again.');
       }
+      if (error instanceof PasswordChangeRequiredError) return passwordChangeRequired();
     }
     return jsonError(403, 'You do not have permission to upload this document.');
   }
@@ -106,6 +108,7 @@ async function resolveAfterLostReply(token: string, operationId: string) {
     }
   } catch (error) {
     if (error instanceof SessionEndedError) return jsonError(401, 'Please sign in again.');
+    if (error instanceof PasswordChangeRequiredError) return passwordChangeRequired();
   }
   return NextResponse.json(
     {

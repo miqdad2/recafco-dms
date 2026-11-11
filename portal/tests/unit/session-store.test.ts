@@ -29,7 +29,7 @@ async function loadStore({ keepFile = false, key = KEY } = {}) {
   return import('@/lib/session-store');
 }
 
-const sample = { token: 'mayan-token', username: 'u', fullName: 'U', canUpload: true, isAdmin: false };
+const sample = { token: 'mayan-token', username: 'u', fullName: 'U', canUpload: true, isAdmin: false, mustChange: false };
 
 describe('server-side session store', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -116,6 +116,44 @@ describe('server-side session store', () => {
     store.updateSessionFlags(store.touchSession(id)!, { canUpload: false, isAdmin: true });
     const restarted = await loadStore({ keepFile: true });
     expect(restarted.touchSession(id)).toMatchObject({ canUpload: false, isAdmin: true });
+  });
+
+  it('keeps the pending password change flag across restarts', async () => {
+    const store = await loadStore();
+    const pending = store.createSession({ ...sample, mustChange: true });
+    const normal = store.createSession(sample);
+    const restarted = await loadStore({ keepFile: true });
+    expect(restarted.touchSession(pending)?.mustChange).toBe(true);
+    expect(restarted.touchSession(normal)?.mustChange).toBe(false);
+    restarted.markMustChange(restarted.touchSession(normal)!);
+    expect(restarted.touchSession(normal)?.mustChange).toBe(true);
+  });
+
+  it('after a password change, switches this session to the new token and ends the other sessions of the old token', async () => {
+    const store = await loadStore();
+    const here = store.createSession({ ...sample, token: 'old-token', mustChange: true });
+    const otherDevice = store.createSession({ ...sample, token: 'old-token' });
+    const someoneElse = store.createSession({ ...sample, token: 'unrelated-token' });
+    store.replaceSessionToken(store.touchSession(here)!, 'new-token', { canUpload: true, isAdmin: true, fullName: 'New Name' });
+    expect(store.touchSession(here)).toMatchObject({ token: 'new-token', mustChange: false, isAdmin: true, fullName: 'New Name' });
+    expect(store.touchSession(otherDevice)).toBeNull();
+    expect(store.touchSession(someoneElse)?.token).toBe('unrelated-token');
+    // Signing out with the new token ends only sessions holding the new token.
+    store.deleteSessionsForToken('old-token');
+    expect(store.touchSession(here)?.token).toBe('new-token');
+  });
+
+  it('upgrades a session file created before the password change flag existed', async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    dbFile = path.join(mkdtempSync(path.join(tmpdir(), 'recafco-sessions-')), 'sessions.sqlite');
+    const old = new DatabaseSync(dbFile);
+    old.exec(`CREATE TABLE sessions (key TEXT PRIMARY KEY, token_hash TEXT NOT NULL, token_enc BLOB NOT NULL,
+      username TEXT NOT NULL, full_name TEXT NOT NULL, can_upload INTEGER NOT NULL, is_admin INTEGER NOT NULL,
+      created_at INTEGER NOT NULL, last_seen_at INTEGER NOT NULL)`);
+    old.close();
+    const store = await loadStore({ keepFile: true });
+    const id = store.createSession(sample);
+    expect(store.touchSession(id)?.mustChange).toBe(false);
   });
 
   it('logout deletes the session for every process', async () => {

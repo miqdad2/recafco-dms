@@ -67,6 +67,10 @@ export type AdminUser = {
   confidential_groups: { id: number; name: string }[];
   last_login: string | null;
   date_joined: string;
+  /** Has a temporary password (new account or reset) not yet replaced. */
+  must_change_password: boolean;
+  /** Sign-in locked after repeated wrong passwords (Mayan lockout). */
+  locked_out: boolean;
 };
 
 export type ConfidentialGroup = {
@@ -88,6 +92,8 @@ export const ACTION_TEXT: Record<string, string> = {
   'user.created': 'created user',
   'user.changed': 'changed user',
   'user.password_set': 'set a new password for',
+  'user.password_reset': 'reset the password of',
+  'user.password_changed': 'changed their own password',
   'confidential_group.created': 'created confidential group',
   'confidential_group.renamed': 'renamed confidential group',
   'confidential_group.member_added': 'added a member to',

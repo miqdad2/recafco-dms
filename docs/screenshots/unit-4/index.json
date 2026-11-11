@@ -1,0 +1,57 @@
+[
+  {
+    "name": "01-login-password-shown-desktop",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "02-login-password-shown-mobile",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "03-admin-create-user-temporary-password-desktop",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "04-admin-user-created-must-change-desktop",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "05-first-login-choose-password-desktop",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "06-first-login-choose-password-mobile",
+    "width": 390,
+    "horizontalScroll": false
+  },
+  {
+    "name": "07-first-login-too-short-desktop",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "08-password-saved-home-desktop",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "09-change-password-signed-in-desktop",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "10-admin-password-reset-desktop",
+    "width": 1440,
+    "horizontalScroll": false
+  },
+  {
+    "name": "11-admin-password-reset-mobile",
+    "width": 390,
+    "horizontalScroll": false
+  }
+]

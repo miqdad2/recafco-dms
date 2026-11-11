@@ -269,3 +269,44 @@ class AuditEntry(models.Model):
 
     class Meta:
         ordering = ('-datetime_created', '-id')
+
+
+class PasswordState(models.Model):
+    """
+    Whether the account must replace its password before doing anything
+    else. Set when an administrator creates the account or resets its
+    password (temporary password); cleared when the person chooses their
+    own password. No row means no pending change (accounts created before
+    this existed, Mayan system accounts).
+
+    The password itself lives only in Django's user table, hashed by
+    Django's password hasher. Nothing here stores or copies it.
+    """
+    user = models.OneToOneField(
+        on_delete=models.CASCADE, primary_key=True,
+        related_name='recafco_password_state', to=settings.AUTH_USER_MODEL
+    )
+    must_change = models.BooleanField(default=False)
+    # Why a change is (or was last) required: "created" or "admin_reset".
+    reason = models.CharField(blank=True, max_length=16)
+    set_by = models.ForeignKey(
+        null=True, on_delete=models.PROTECT,
+        related_name='recafco_password_states_set', to=settings.AUTH_USER_MODEL
+    )
+    datetime_temporary_set = models.DateTimeField(null=True)
+    datetime_changed = models.DateTimeField(null=True)
+
+
+class LoginRateWindow(models.Model):
+    """
+    Sign-in requests per username per minute (passwords.LoginUsernameRateThrottle).
+    Kept in the database so every Gunicorn worker and server shares one
+    count; Mayan's own throttle cache is per-process memory. The key is a
+    SHA-256 of the lower-cased username, never the name or password.
+    """
+    key = models.CharField(max_length=64)
+    window_start = models.DateTimeField(db_index=True)
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('key', 'window_start')

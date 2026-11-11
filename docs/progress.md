@@ -70,4 +70,34 @@ Remaining gaps (explicit; details in docs/unit-3-report.md)
   keep-alive not shortened (would need the undici package).
 - Upload operation retention/cleanup; multi-server session store.
 
+## Unit 4 — Local username/password accounts (2026-11-11) — done, awaiting review
+
+Completed
+- Administrator creates accounts with a username (lower case, unique ignoring
+  case, numeric employee IDs allowed) and a simple temporary password ("123").
+- Temporary password must be replaced at first sign-in and after every admin
+  reset; until then only password change and sign-out work, in the portal and
+  on direct Mayan access (token, HTTP Basic, web session) via
+  `PasswordPolicyMiddleware` (Mayan settings hook, no core change).
+- Personal passwords ≥ 6 characters, no character types; own change needs the
+  current password and signs out other devices; admin reset revokes portal
+  sessions, API token and Mayan web sessions and clears the lockout.
+- Mayan's self-service `/users/current/` writes (password change without the
+  current one, rename, delete) and web password change are refused for
+  RECAFCO accounts (bypass found and fixed).
+- Lockout per username (5 failures / 15 min) plus 10 sign-ins per minute per
+  username in the database; no per-IP limit, so one locked username does not
+  block the office.
+- Show/hide password controls on sign-in, change password and admin forms.
+- Tests: 13/13 unit, 174/174 integration (15 new). Screenshots in
+  `docs/screenshots/unit-4/`. Report: `docs/unit-4-report.md`.
+
+Remaining gaps (explicit; details in docs/unit-4-report.md)
+- **Outside access authorization and additional verification: not
+  implemented** (needs RECAFCO decision); sign-in is username + password only.
+- Lockout figures and temporary-password expiry not confirmed by RECAFCO.
+- Mayan's own login page is case-sensitive; superusers can still set passwords
+  in Mayan's own screens without "must change".
+- Required Mayan settings documented for production, applied only in dev.
+
 Next unit: not started. Waiting for review.

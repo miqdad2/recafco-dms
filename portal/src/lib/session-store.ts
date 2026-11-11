@@ -24,6 +24,9 @@ export type Session = {
   /** Shows the Administration link only. Authorization is always checked by
    * the extension on each request, never from this flag. */
   isAdmin: boolean;
+  /** Signed in with a temporary password: only "change password" and
+   * "sign out" are offered. Mayan enforces the same rule on every request. */
+  mustChange: boolean;
   createdAt: number;
   lastSeenAt: number;
   /** Internal: hash of the session ID (database key). */
@@ -37,6 +40,7 @@ type Row = {
   full_name: string;
   can_upload: number;
   is_admin: number;
+  must_change: number;
   created_at: number;
   last_seen_at: number;
 };
@@ -69,6 +73,11 @@ function db(): DatabaseSync {
     CREATE INDEX IF NOT EXISTS sessions_token_hash ON sessions (token_hash);
     CREATE INDEX IF NOT EXISTS sessions_last_seen ON sessions (last_seen_at);
   `);
+  // Unit 4: added column. Existing session files are upgraded in place.
+  const columns = database.prepare('PRAGMA table_info(sessions)').all() as { name: string }[];
+  if (!columns.some((column) => column.name === 'must_change')) {
+    database.exec('ALTER TABLE sessions ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0');
+  }
   globalStore.__recafcoSessionDb = database;
   if (!globalStore.__recafcoSweep) {
     globalStore.__recafcoSweep = setInterval(sweep, 60_000);
@@ -111,10 +120,21 @@ export function createSession(data: Omit<Session, 'createdAt' | 'lastSeenAt' | '
   const now = Date.now();
   db()
     .prepare(
-      `INSERT INTO sessions (key, token_hash, token_enc, username, full_name, can_upload, is_admin, created_at, last_seen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (key, token_hash, token_enc, username, full_name, can_upload, is_admin, must_change, created_at, last_seen_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(hash(id), hash(data.token), encrypt(data.token), data.username, data.fullName, data.canUpload ? 1 : 0, data.isAdmin ? 1 : 0, now, now);
+    .run(
+      hash(id),
+      hash(data.token),
+      encrypt(data.token),
+      data.username,
+      data.fullName,
+      data.canUpload ? 1 : 0,
+      data.isAdmin ? 1 : 0,
+      data.mustChange ? 1 : 0,
+      now,
+      now,
+    );
   return id;
 }
 
@@ -140,6 +160,7 @@ export function touchSession(id: string | undefined): Session | null {
     fullName: row.full_name,
     canUpload: row.can_upload === 1,
     isAdmin: row.is_admin === 1,
+    mustChange: row.must_change === 1,
     createdAt: row.created_at,
     lastSeenAt: now,
   };
@@ -153,6 +174,43 @@ export function updateSessionFlags(session: Session, flags: { canUpload: boolean
   db()
     .prepare('UPDATE sessions SET can_upload = ?, is_admin = ? WHERE key = ?')
     .run(flags.canUpload ? 1 : 0, flags.isAdmin ? 1 : 0, session.key);
+}
+
+/** Mayan reported that this account must replace its password first. */
+export function markMustChange(session: Session): void {
+  session.mustChange = true;
+  if (!session.key) return;
+  db().prepare('UPDATE sessions SET must_change = 1 WHERE key = ?').run(session.key);
+}
+
+/**
+ * After a password change Mayan issues a new token and deletes the old one.
+ * This session switches to the new token; every other session that used
+ * the old token (other devices, other browsers) is ended.
+ */
+export function replaceSessionToken(
+  session: Session,
+  token: string,
+  flags: { canUpload: boolean; isAdmin: boolean; fullName: string },
+): void {
+  if (!session.key) throw new Error('Session has no key.');
+  const database = db();
+  const oldHash = hash(session.token);
+  database.exec('BEGIN IMMEDIATE');
+  try {
+    database
+      .prepare(
+        `UPDATE sessions SET token_hash = ?, token_enc = ?, must_change = 0, can_upload = ?, is_admin = ?, full_name = ?
+         WHERE key = ?`,
+      )
+      .run(hash(token), encrypt(token), flags.canUpload ? 1 : 0, flags.isAdmin ? 1 : 0, flags.fullName, session.key);
+    database.prepare('DELETE FROM sessions WHERE token_hash = ? AND key != ?').run(oldHash, session.key);
+    database.exec('COMMIT');
+  } catch (error) {
+    database.exec('ROLLBACK');
+    throw error;
+  }
+  Object.assign(session, { token, mustChange: false, ...flags });
 }
 
 export function deleteSession(id: string | undefined): Session | null {

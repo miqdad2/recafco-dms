@@ -67,7 +67,13 @@ Values ending in "(dev sample)" are placeholders for tests only.
 - Mayan tokens never reach the browser; the browser holds only an opaque
   session ID (server-side session store).
 - Extension views must set `permission_classes = (IsAuthenticated,)`:
-  Mayan's DRF config has no default permission class.
+  Mayan's DRF config has no default permission class. The only exception is
+  the sign-in endpoint `recafco/auth/login/` (anonymous by necessity).
+- Accounts: one identity source (Mayan's user table). A pending password
+  change blocks everything except password change and sign-out, also on
+  direct Mayan access (`PasswordPolicyMiddleware`, installed through
+  `MAYAN_EXTRA_SETTINGS_FUNCTION_LIST`). Lockout is per username, never
+  per IP. See `docs/unit-4-report.md`.
 - Do not add `proxy.ts`/middleware to the portal: it buffers and silently
   truncates request bodies above 10 MB.
 - Uploads go only through `POST /api/v4/recafco/uploads/`, which creates the

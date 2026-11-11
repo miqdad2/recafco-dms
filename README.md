@@ -84,10 +84,29 @@ Screenshots (portal running on 127.0.0.1:3107, Microsoft Edge installed):
 ```sh
 node scripts/screenshots.mjs docs/screenshots/unit-2
 node scripts/screenshots-unit3.mjs docs/screenshots/unit-3   # confidential upload, upload recovery
+node scripts/screenshots-unit4.mjs docs/screenshots/unit-4   # sign-in, first-login password change, reset
 ```
 
 The integration tests reset the four dev users, create test documents in the
-dev stack, temporarily disable or remove a dev user, and restore them.
+dev stack, temporarily disable or remove a dev user, and restore them. The
+Unit 4 tests also create throwaway accounts (one per test) in the dev stack.
+
+## Accounts and sign-in (Unit 4)
+
+Accounts live only in Mayan's user table (Django password hashing). Mayan
+MUST run with these settings (set in `deploy/dev/compose.yaml`; required in
+production too):
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| `MAYAN_EXTRA_SETTINGS_FUNCTION_LIST` | `recafco_dms.settings_hooks.add_middleware` | Enforces "replace the temporary password first" and blocks Mayan's self-service password/account changes, including on direct Mayan access |
+| `MAYAN_AUTHENTICATION_LOCKOUT_ENABLED` | `true` | Locks a username after repeated wrong passwords |
+| `MAYAN_AUTHENTICATION_LOCKOUT_PARAMETERS` | `['username']` | Per username only. Mayan's default also uses the IP address, and the office shares addresses |
+| `MAYAN_AUTHENTICATION_LOCKOUT_FAILURE_LIMIT` / `..._COOLOFF_TIME` | `5` / `0.25` (hours) | 5 wrong passwords lock the username for 15 minutes |
+| `MAYAN_AUTHENTICATION_DISABLE_PASSWORD_RESET` | `true` | No email-based reset; administrators reset passwords |
+
+Usernames are stored in lower case. The portal's sign-in ignores case;
+Mayan's own login page compares exactly, so type lower case there.
 
 ## Portal configuration (`portal/.env.local`)
 

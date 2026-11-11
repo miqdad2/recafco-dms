@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server';
-import { jsonError, parseId, routeSession, streamFromMayan } from '@/lib/route-helpers';
+import { jsonError, parseId, routeSession, streamFromMayan, passwordChangeRequired } from '@/lib/route-helpers';
 
 const WIDTHS = [400, 800, 1200, 1600];
 
@@ -10,6 +10,7 @@ export async function GET(
 ) {
   const session = routeSession(request);
   if (!session) return jsonError(401, 'Please sign in again.');
+  if (session.mustChange) return passwordChangeRequired();
   const params = await context.params;
   const [id, versionId, pageId] = [params.id, params.versionId, params.pageId].map(parseId);
   if (id === null || versionId === null || pageId === null) return jsonError(404, 'Not found.');

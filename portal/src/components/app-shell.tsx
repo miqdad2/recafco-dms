@@ -60,7 +60,13 @@ export function AppShell({
             <div className="absolute right-0 z-20 mt-2 w-72 rounded-2xl border-2 border-line bg-white p-4 shadow-lg">
               <p className="text-lg font-semibold break-words">{session.fullName}</p>
               <p className="text-base text-muted break-words">Signed in as {session.username}</p>
-              <form id="signout-form" action={logout} className="mt-4">
+              <Link
+                href="/change-password"
+                className="mt-4 flex min-h-12 items-center justify-center rounded-xl border-2 border-line px-4 text-base font-semibold hover:border-ink"
+              >
+                Change password
+              </Link>
+              <form id="signout-form" action={logout} className="mt-2">
                 <button
                   type="submit"
                   className="min-h-12 w-full rounded-xl border-2 border-ink px-4 text-base font-semibold hover:bg-canvas"

@@ -143,12 +143,20 @@ export async function setUserActive(id: number, value: boolean): Promise<FormSta
   );
 }
 
-export async function setUserPassword(id: number, _state: FormState, data: FormData): Promise<FormState> {
+/**
+ * Sets a temporary password. Mayan ends the person's sessions everywhere and
+ * makes them choose their own password at the next sign-in. The temporary
+ * password is not echoed back; the administrator tells the person directly.
+ */
+export async function resetUserPassword(id: number, _state: FormState, data: FormData): Promise<FormState> {
   const password = String(data.get('password') ?? '');
-  if (password !== String(data.get('password_again') ?? '')) {
-    return { errors: { password: 'The two passwords are not the same.' }, at: Date.now() };
-  }
-  return send(`/users/${id}/password/`, 'POST', { password }, 'New password saved. The user must sign in again.');
+  if (!password) return { errors: { password: 'Enter a temporary password.' }, at: Date.now() };
+  return send(
+    `/users/${id}/password/`,
+    'POST',
+    { password },
+    'Password reset. The person was signed out everywhere and must choose a new password when they next sign in.',
+  );
 }
 
 // --------------------------------------------------- confidential groups

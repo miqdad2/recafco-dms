@@ -76,6 +76,10 @@ export default async function AdminUsersPage({ searchParams }: PageProps<'/admin
                     <span className={`inline-flex rounded-full px-3 py-1 font-semibold ${user.is_active ? 'bg-ok-soft text-ok' : 'bg-canvas text-muted'}`}>
                       {user.is_active ? 'Active' : 'Deactivated'}
                     </span>
+                    {user.is_active && user.must_change_password && (
+                      <span className="mt-1 block text-base text-muted">Temporary password</span>
+                    )}
+                    {user.locked_out && <span className="mt-1 block text-base font-semibold text-brand-strong">Sign-in locked</span>}
                   </td>
                 </tr>
               ))}

@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import { login, type LoginState } from '@/app/actions';
+import { PasswordInput } from '@/components/password-input';
 import { buttonPrimary, fieldClass } from '@/components/ui';
 
 export function LoginForm() {
@@ -18,10 +19,14 @@ export function LoginForm() {
         <label htmlFor="username" className="mb-2 block text-lg font-semibold">
           Username
         </label>
+        <p id="username-hint" className="mb-2 text-base text-muted">
+          Your username or employee number. Capital letters do not matter.
+        </p>
         <input
           id="username"
           name="username"
           autoComplete="username"
+          aria-describedby="username-hint"
           autoCapitalize="none"
           spellCheck={false}
           required
@@ -33,14 +38,7 @@ export function LoginForm() {
         <label htmlFor="password" className="mb-2 block text-lg font-semibold">
           Password
         </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          className={fieldClass}
-        />
+        <PasswordInput id="password" name="password" autoComplete="current-password" />
       </div>
       <button type="submit" className={buttonPrimary} disabled={pending}>
         {pending ? 'Signing in…' : 'Sign in'}

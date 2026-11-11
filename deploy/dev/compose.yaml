@@ -73,6 +73,19 @@ services:
       MAYAN_WORKER_C_CONCURRENCY: "1"
       MAYAN_WORKER_D_CONCURRENCY: "1"
       MAYAN_WORKER_E_CONCURRENCY: "1"
+      # Unit 4 account rules. These are REQUIRED in production too (see
+      # docs/unit-4-report.md): the password-policy middleware (pending
+      # password change, no self-service changes outside the portal) and
+      # Mayan's lockout counted per USERNAME only. The default
+      # ['username', 'ip_address'] would let one office IP lock everyone.
+      MAYAN_EXTRA_SETTINGS_FUNCTION_LIST: recafco_dms.settings_hooks.add_middleware
+      MAYAN_AUTHENTICATION_LOCKOUT_ENABLED: "true"
+      MAYAN_AUTHENTICATION_LOCKOUT_PARAMETERS: "['username']"
+      MAYAN_AUTHENTICATION_LOCKOUT_FAILURE_LIMIT: "5"
+      MAYAN_AUTHENTICATION_LOCKOUT_COOLOFF_TIME: "0.25"
+      MAYAN_AUTHENTICATION_LOCKOUT_RESET_ON_SUCCESS: "true"
+      # No email-based password reset: accounts have no email requirement.
+      MAYAN_AUTHENTICATION_DISABLE_PASSWORD_RESET: "true"
       # Dev fixtures (recafco_dev command) and test user passwords.
       RECAFCO_DEV_FIXTURES: "1"
       RECAFCO_DEV_PASSWORD_EMPLOYEE_A: ${RECAFCO_DEV_PASSWORD_EMPLOYEE_A}

@@ -11,7 +11,7 @@ Rules kept here:
   document-type ACL for a dedicated role (see docs/permission-model.md).
 - Every change is recorded in AuditEntry.
 """
-from django.contrib.auth import get_user_model, password_validation
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -25,6 +25,7 @@ from mayan.apps.documents.models.document_type_models import DocumentType
 from mayan.apps.metadata.models import (
     DocumentMetadata, DocumentTypeMetadataType
 )
+from mayan.apps.authentication.lockouts import is_user_locked
 from mayan.apps.permissions.models import Role
 
 from .access import is_system_account
@@ -32,13 +33,17 @@ from .literals import (
     ADMIN_PAGE_SIZE, CONFIDENTIAL_GROUP_NAME_MAX_LENGTH, CONFIDENTIAL_GROUP_PREFIX, DEPARTMENT_ICONS,
     GROUP_ADMINISTRATORS_NAME, GROUP_EMPLOYEES_NAME,
     METADATA_TYPE_CATEGORY_NAME, METADATA_TYPE_DEPARTMENT_NAME,
-    PASSWORD_MIN_LENGTH, QUERY_MAX_LENGTH
+    PASSWORD_REASON_CREATED, QUERY_MAX_LENGTH
 )
 from mayan.apps.documents.models.document_models import Document
 
 from .models import (
     AuditEntry, Category, ConfidentialAccessGroup, ControllerAssignment,
-    Department, DepartmentAssignment, DocumentResponsibility, PortalUpload
+    Department, DepartmentAssignment, DocumentResponsibility, PasswordState,
+    PortalUpload
+)
+from .passwords import (
+    clean_new_username, clean_temporary_password, set_temporary_password
 )
 from .permission_model import READ_PERMISSIONS
 from .services import (
@@ -273,6 +278,10 @@ def serialize_user(user):
         'is_employee': GROUP_EMPLOYEES_NAME in group_names,
         'last_login': user.last_login.isoformat() if user.last_login else None,
         'last_name': user.last_name,
+        'locked_out': is_user_locked(user=user),
+        'must_change_password': PasswordState.objects.filter(
+            user=user, must_change=True
+        ).exists(),
         'username': user.username
     }
 
@@ -297,21 +306,6 @@ def get_manageable_user(user_id):
         return manageable_users().get(pk=int(user_id))
     except (User.DoesNotExist, TypeError, ValueError):
         return None
-
-
-def _clean_password(password, user=None):
-    password = password or ''
-    if len(password) < PASSWORD_MIN_LENGTH:
-        raise InputRejected(
-            field='password', message='Use at least {} characters.'.format(
-                PASSWORD_MIN_LENGTH
-            )
-        )
-    try:
-        password_validation.validate_password(password=password, user=user)
-    except ValidationError as exception:
-        raise InputRejected(field='password', message=' '.join(exception.messages))
-    return password
 
 
 def _clean_ids(model, ids, field):
@@ -372,29 +366,16 @@ def create_user(
     is_employee=True, is_administrator=False, department_ids=(),
     controller_department_ids=()
 ):
-    username = (username or '').strip()
-    if not username:
-        raise InputRejected(field='username', message='Enter a username.')
-    try:
-        User.username_validator(username)
-    except ValidationError:
-        raise InputRejected(
-            field='username',
-            message='Use letters, numbers and @ . + - _ only, without spaces.'
-        )
-    if len(username) > 150:
-        raise InputRejected(field='username', message='Use at most 150 characters.')
-    if User.objects.filter(username__iexact=username).exists():
-        raise InputRejected(field='username', message='This username is already used.')
+    # Stored in lower case; unique ignoring case. Names, email and phone
+    # are optional: a username and a temporary password are enough.
+    username = clean_new_username(username)
     email = (email or '').strip()
     if email:
         try:
             validate_email(email)
         except ValidationError:
             raise InputRejected(field='email', message='Enter a valid email address.')
-    password = _clean_password(
-        password=password, user=User(username=username, email=email)
-    )
+    password = clean_temporary_password(password=password)
     department_ids = _validate_new_assignment_ids(
         ids=department_ids or (), field='department_ids'
     )
@@ -406,8 +387,12 @@ def create_user(
         with transaction.atomic():
             user = User.objects.create_user(
                 email=email, first_name=(first_name or '').strip()[:150],
-                last_name=(last_name or '').strip()[:150], password=password,
+                last_name=(last_name or '').strip()[:150], password=None,
                 username=username
+            )
+            set_temporary_password(
+                actor=actor, password=password, reason=PASSWORD_REASON_CREATED,
+                user=user
             )
             _set_group(user=user, name=GROUP_EMPLOYEES_NAME, value=is_employee)
             _set_group(user=user, name=GROUP_ADMINISTRATORS_NAME, value=is_administrator)
@@ -500,21 +485,6 @@ def update_user(
                 target=user, target_type='user'
             )
     return user, changes
-
-
-def set_user_password(actor, user, password):
-    if is_system_account(user):
-        raise InputRejected(field='form', message='System accounts are managed elsewhere.')
-    password = _clean_password(password=password, user=user)
-    with transaction.atomic():
-        user.set_password(password)
-        user.save()
-        # The old Mayan token stops working: the user signs in again.
-        Token.objects.filter(user=user).delete()
-        audit(
-            action='user.password_set', actor=actor, target=user,
-            target_type='user'
-        )
 
 
 # --------------------------------------------------- confidential groups

@@ -1,4 +1,5 @@
 import { ActionForm } from '@/components/action-form';
+import { PasswordInput } from '@/components/password-input';
 import { buttonPrimary, fieldClass } from '@/components/ui';
 import { type AdminDepartment, adminGet, requireAdmin } from '@/lib/admin';
 import { createUser } from '../../actions';
@@ -33,15 +34,31 @@ export default async function NewUserPage() {
             <label htmlFor="username" className="mb-2 block text-lg font-semibold">
               Username
             </label>
-            <input id="username" name="username" required maxLength={150} autoComplete="off" spellCheck={false} className={fieldClass} />
-            <p className="mt-1 text-base text-muted">Letters, numbers and . @ + - _ only. Cannot be changed later.</p>
+            <input
+              id="username"
+              name="username"
+              required
+              maxLength={150}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              aria-describedby="username-hint"
+              className={fieldClass}
+            />
+            <p id="username-hint" className="mt-1 text-base text-muted">
+              A name or an employee number, for example “ahmed.k” or “10452”. Saved in small letters; capitals do not matter
+              when signing in. Cannot be changed later.
+            </p>
           </div>
           <div>
             <label htmlFor="password" className="mb-2 block text-lg font-semibold">
-              First password
+              Temporary password
             </label>
-            <input id="password" name="password" type="password" required minLength={10} autoComplete="new-password" className={fieldClass} />
-            <p className="mt-1 text-base text-muted">At least 10 characters. Give it to the person privately.</p>
+            <PasswordInput id="password" name="password" autoComplete="off" describedBy="password-hint" />
+            <p id="password-hint" className="mt-1 text-base text-muted">
+              Anything simple, for example “123”. Tell it to the person privately. At their first sign-in they must choose their
+              own password (at least 6 characters).
+            </p>
           </div>
         </div>
         <UserFields departments={departments.results} />

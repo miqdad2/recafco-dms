@@ -4,6 +4,67 @@ Business decisions confirmed by RECAFCO, and the technical decisions that
 follow from them. Newest first. Do not implement anything here as a rule
 unless it is marked **confirmed**.
 
+## 2026-11-11 — Unit 4: local username/password accounts
+
+### Rules given by RECAFCO for this unit
+
+- No email, phone number or self-registration. An administrator creates each
+  account with a unique username and a temporary password.
+- Simple temporary passwords such as "123" are allowed.
+- The temporary password must be replaced at first sign-in and after every
+  administrator reset. Until then only "change password" and "sign out" work,
+  enforced on the backend and on direct Mayan access.
+- Personal passwords: at least 6 characters, no character types required.
+- Simple usernames and numeric employee IDs are allowed; case is handled
+  consistently; uniqueness is enforced on the backend.
+- Changing one's own password needs the current password.
+- An administrator reset revokes existing sessions and credentials.
+- Passwords are never stored or shown in plain text; supported secure hashing.
+- Login throttling must not block the whole office (shared IP addresses).
+- One identity source; no second password database.
+- Outside (internet) access authorization and additional verification remain
+  requirements. **Not implemented in this unit** and not claimed.
+
+### Technical decisions
+
+- Identity source = Mayan's Django user table. Passwords are set with
+  `set_password()` (Django's hasher; PBKDF2-SHA256 in this image) and checked
+  with `authenticate()`, so Mayan's lockout sees every attempt.
+  `PasswordState` stores only whether a change is pending.
+- Usernames are stored in lower case; new names are unique ignoring case
+  (checked on create; exact-name uniqueness is the database constraint, and
+  every new name is lower case). Portal sign-in resolves the name ignoring
+  case. Accounts created earlier with capitals keep their spelling.
+- Temporary password: at least 1 character ("123" allowed). Personal
+  password: 6–128 characters and different from the current one. Mayan's own
+  Django validators (8 characters, not all numbers, not common) are
+  deliberately not applied to these passwords, because RECAFCO set the rule
+  above.
+- New extension endpoints: `POST /api/v4/recafco/auth/login/` (anonymous by
+  necessity, so it is the only extension view without IsAuthenticated) and
+  `POST /api/v4/recafco/auth/password/`. The portal no longer uses Mayan's
+  token-obtain endpoint.
+- Enforcement on direct Mayan access: `recafco_dms.middleware.PasswordPolicyMiddleware`,
+  installed with Mayan's supported `MAYAN_EXTRA_SETTINGS_FUNCTION_LIST` hook
+  (no Mayan source change). It refuses every request made as an account
+  with a pending change (web session, API token or HTTP Basic) except the
+  password change, token revocation and Mayan logout. For RECAFCO accounts it
+  also refuses Mayan's self-service `/users/current/` writes and its web
+  password-change page. Tested in Mayan 4.12.2 without the middleware:
+  `PATCH /users/current/` changed the password without the current one and
+  renamed the account (with capitals, bypassing case-insensitive uniqueness).
+- Throttling: Mayan lockout per **username** (5 failures, 15 minutes), plus a
+  per-username request limit of 10 per minute kept in the database. Mayan's
+  throttle cache is per-process memory, so a count kept there would be split
+  across Gunicorn workers. There is no per-IP limit on sign-in.
+- A password change rotates the Mayan token: the current portal session
+  keeps working with the new token; every other session and device is
+  signed out.
+- Administrator reset: temporary password and pending change; token deleted
+  (all portal sessions end); Mayan web sessions end (Django session hash);
+  lockout counter cleared. Administrators cannot reset their own password
+  there; they use "Change password".
+
 ## 2026-11-10 — Unit 3
 
 ### Rules given by RECAFCO for this unit (initial rules)

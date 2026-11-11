@@ -1,7 +1,7 @@
 import 'server-only';
 import { type NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE } from './config';
-import { mayanStream, SessionEndedError } from './mayan';
+import { mayanStream, PasswordChangeRequiredError, SessionEndedError } from './mayan';
 import { type Session, touchSession } from './session-store';
 
 export function routeSession(request: NextRequest): Session | null {
@@ -10,6 +10,13 @@ export function routeSession(request: NextRequest): Session | null {
 
 export const jsonError = (status: number, message: string) =>
   NextResponse.json({ detail: message }, { status });
+
+/** The account signed in with a temporary password and has not replaced it. */
+export const passwordChangeRequired = () =>
+  NextResponse.json(
+    { code: 'password_change_required', detail: 'Change your temporary password first.' },
+    { status: 403 },
+  );
 
 /**
  * Rejects cross-site state-changing requests. Browsers always send Origin on
@@ -39,6 +46,7 @@ export async function streamFromMayan(session: Session, path: string): Promise<R
     upstream = await mayanStream(session.token, path);
   } catch (error) {
     if (error instanceof SessionEndedError) return jsonError(401, 'Please sign in again.');
+    if (error instanceof PasswordChangeRequiredError) return passwordChangeRequired();
     throw error;
   }
   if (upstream.status === 404 || upstream.status === 403) {

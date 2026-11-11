@@ -2,8 +2,9 @@
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { CHANGE_PASSWORD_PATH } from '@/lib/auth';
 import { config, SESSION_COOKIE } from '@/lib/config';
-import { getMe, obtainToken, revokeToken } from '@/lib/mayan';
+import { revokeToken, signIn } from '@/lib/mayan';
 import {
   createSession,
   deleteSession,
@@ -11,6 +12,14 @@ import {
 } from '@/lib/session-store';
 
 export type LoginState = { error?: string; username?: string };
+
+const SIGN_IN_ERRORS = {
+  invalid: 'Username or password is not correct.',
+  locked:
+    'Too many unsuccessful sign-in attempts for this username. Wait 15 minutes, or ask an administrator to reset the password.',
+  throttled: 'Too many sign-in attempts for this username. Wait a minute and try again.',
+  unavailable: 'The document system is not responding. Try again soon.',
+} as const;
 
 export async function login(
   _previous: LoginState,
@@ -23,22 +32,19 @@ export async function login(
     return { error: 'Enter your username and password.', username };
   }
 
-  let token: string | null;
-  try {
-    token = await obtainToken(username, password);
-  } catch {
-    return { error: 'The document system is not responding. Try again soon.', username };
-  }
+  // The password is checked by Mayan (Django's authenticate(), Mayan's own
+  // user table and lockout). It is never stored or logged here.
+  const result = await signIn(username, password);
   // Mayan gives the same answer for a wrong password and a disabled account.
-  if (!token) return { error: 'Username or password is not correct.', username };
+  if (!result.ok) return { error: SIGN_IN_ERRORS[result.reason], username };
 
-  const me = await getMe(token);
   const sessionId = createSession({
-    token,
-    username: me.username,
-    fullName: me.full_name,
-    canUpload: me.can_upload,
-    isAdmin: me.is_admin,
+    token: result.token,
+    username: result.username,
+    fullName: result.fullName,
+    canUpload: result.canUpload,
+    isAdmin: result.isAdmin,
+    mustChange: result.mustChange,
   });
 
   (await cookies()).set(SESSION_COOKIE, sessionId, {
@@ -48,7 +54,7 @@ export async function login(
     path: '/',
     maxAge: Math.floor(config.sessionAbsoluteMs / 1000),
   });
-  redirect('/');
+  redirect(result.mustChange ? CHANGE_PASSWORD_PATH : '/');
 }
 
 /**

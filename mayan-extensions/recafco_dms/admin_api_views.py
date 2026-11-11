@@ -25,7 +25,6 @@ from .admin_services import (
     rename_confidential_group, reorder_departments,
     serialize_confidential_group, serialize_user,
     reclassify_document, set_confidential_membership, set_responsible_person,
-    set_user_password,
     update_category, update_department, update_user
 )
 from .api_views import (
@@ -36,6 +35,7 @@ from .literals import (
     ADMIN_PAGE_SIZE, DEPARTMENT_ICONS, GROUP_ADMINISTRATORS_NAME,
     GROUP_EMPLOYEES_NAME, QUERY_MAX_LENGTH
 )
+from .passwords import reset_password_by_admin
 from .models import (
     AuditEntry, Category, ConfidentialAccessGroup, ControllerAssignment,
     Department
@@ -278,7 +278,12 @@ class APIAdminUserPasswordView(AdminAPIView):
         self.check_fields(request)
         user = get_user_or_404(user_id)
         try:
-            set_user_password(
+            if user.pk == request.user.pk:
+                raise InputRejected(
+                    field='password',
+                    message='Use “Change password” in your account menu to change your own password.'
+                )
+            reset_password_by_admin(
                 actor=request.user, password=body_value(request.data, 'password', str),
                 user=user
             )

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { AppShell } from '@/components/app-shell';
 import { Icon } from '@/components/icons';
-import { SampleBadge, buttonPrimary, fieldClass } from '@/components/ui';
+import { Notice, SampleBadge, buttonPrimary, fieldClass } from '@/components/ui';
 import { refreshRoles, requireSession, withMayan } from '@/lib/auth';
 import { type Department, getDepartments } from '@/lib/mayan';
 
@@ -17,8 +17,9 @@ function greeting(): string {
   return 'Good evening';
 }
 
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: PageProps<'/'>) {
   const session = await requireSession();
+  const welcome = (await searchParams).welcome === '1';
   const [me, data] = await Promise.all([refreshRoles(session), withMayan(() => getDepartments(session.token))]);
   const firstName = session.fullName.split(' ')[0];
   const myDepartments = new Set([...me.department_ids, ...me.controller_department_ids]);
@@ -26,6 +27,11 @@ export default async function HomePage() {
 
   return (
     <AppShell session={session} section="departments">
+      {welcome && (
+        <Notice tone="ok" role="status">
+          Your password is saved. Use it the next time you sign in.
+        </Notice>
+      )}
       <section aria-labelledby="welcome" className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-line sm:p-8">
         <p id="welcome" className="text-lg text-muted">
           {greeting()}, {firstName}

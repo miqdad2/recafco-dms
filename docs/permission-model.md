@@ -123,7 +123,24 @@ by department. A department is a label for organizing documents.
   a group (they manage membership); that change is recorded in the activity
   log.
 
+## Unit 4 additions: accounts and passwords
+
+- One identity source: Mayan's user table. No portal password store.
+- An account with a pending password change (new account or administrator
+  reset) can do nothing in Mayan except change its password and sign out, in
+  the portal and on direct Mayan access (API token, HTTP Basic, Mayan web
+  session), through `PasswordPolicyMiddleware`.
+- RECAFCO accounts cannot change their password, username or account through
+  Mayan's own self-service endpoints; the portal's password change requires
+  the current password and applies RECAFCO's rules.
+- Lockout counts per username, so one locked user does not affect others on
+  the same office IP address.
+
 ## Not yet decided (needs RECAFCO)
+
+- Outside (internet) access: who may connect from outside, through what, and
+  which additional verification (for example a second factor) is required.
+  **Not built: sign-in today is username and password only.**
 
 - Releasing a confidential document back to general (and who may do it).
 - Who should be in each confidential group (the dev users are samples).
