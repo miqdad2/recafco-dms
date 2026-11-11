@@ -174,4 +174,14 @@ Remaining limitations
   Tests: unit 13/13, integration 178/178 (after restarting the dev Mayan,
   which was near its memory limit; one earlier run had one 403).
 
+## Sidebar logo badge (2026-11-11) — done, awaiting review
+
+- App sidebar/header only (login unchanged): complete logo (cropped mark,
+  Arabic name and "Since 1976" kept) in a white circular badge, 1px light
+  border, very soft shadow, 9px padding, object-fit contain. 64px in the
+  desktop sidebar, 52px in the phone/tablet header; "RECAFCO / Documents"
+  beside it, 12px gap, vertically centred (text hidden below 380px wide).
+- Verified at 1440/820/390/360px: no horizontal scroll, menu and nav links
+  unchanged. Tests: typecheck, lint, unit 13/13.
+
 Next unit: not started. Waiting for review.

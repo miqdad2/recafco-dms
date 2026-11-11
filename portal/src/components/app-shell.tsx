@@ -63,9 +63,9 @@ export function AppShell({
                   <MainNav session={session} section={section} label="Main menu" />
                 </div>
               </MenuDetails>
-              <Link href="/" className="flex min-h-11 items-center gap-2 lg:hidden" aria-label="RECAFCO Documents – Departments">
-                <Image src="/recafco-logo.png" alt="" width={36} height={36} priority />
-                <span className="hidden text-base font-bold sm:inline">RECAFCO Documents</span>
+              <Link href="/" className="flex min-h-11 items-center gap-3 lg:hidden" aria-label="RECAFCO Documents – Departments">
+                <LogoBadge className="size-13" />
+                <BrandText className="hidden min-[380px]:flex" />
               </Link>
               {section && (
                 <p className="hidden truncate text-base font-semibold text-muted lg:block">{SECTION_LABELS[section]}</p>
@@ -86,12 +86,35 @@ export function AppShell({
 function Brand() {
   return (
     <Link href="/" className="flex items-center gap-3 border-b border-line px-5 py-4" aria-label="RECAFCO Documents – Departments">
-      <Image src="/recafco-logo.png" alt="" width={44} height={44} priority />
-      <span className="flex flex-col leading-tight">
-        <span className="text-xs font-bold tracking-[0.16em] text-brand">RECAFCO</span>
-        <span className="text-lg font-bold">Documents</span>
-      </span>
+      <LogoBadge className="size-16" />
+      <BrandText className="flex" />
     </Link>
+  );
+}
+
+/*
+ * The complete logo (Arabic name, wordmark, "Since 1976") in a white circular
+ * badge. Uses the cropped mark (640:501, see auth-layout.tsx) so the artwork
+ * fills the badge; object-contain inside the padded box keeps it whole and
+ * unstretched, and its corners stay inside the circle at 64px and 52px.
+ */
+function LogoBadge({ className }: { className: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`flex shrink-0 items-center justify-center rounded-full border border-line bg-white p-[9px] shadow-[0_1px_3px_rgb(0_0_0/0.06)] ${className}`}
+    >
+      <Image src="/recafco-logo-mark.png" alt="" width={46} height={36} priority className="size-full object-contain" />
+    </span>
+  );
+}
+
+function BrandText({ className }: { className: string }) {
+  return (
+    <span className={`flex-col leading-tight ${className}`}>
+      <span className="text-xs font-bold tracking-[0.16em] text-brand">RECAFCO</span>
+      <span className="text-lg font-bold">Documents</span>
+    </span>
   );
 }
 
