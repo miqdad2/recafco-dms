@@ -149,4 +149,18 @@ Remaining limitations
 - UI only. Tests: 13/13 unit, 178/178 integration (one assertion updated
   for the icon toggle). Screenshots: docs/screenshots/login-refresh/refined/.
 
+## Login final (2026-11-11) — done, awaiting review
+
+- Trimmed logo artwork (proportions kept) in a 96px tile (72px mobile);
+  "Document / Management" beside it; three-line headline, no paragraph;
+  1040px card at 39/61, 555px tall at 1440px; warm-grey page; help text
+  under the button without divider; autofill restyled for readability.
+- "Signed out" shown only after a real sign-out (one-time cookie), not on
+  reload or a typed ?signedout=1.
+- Tests: unit 13/13. Integration: full runs had intermittent failures
+  (05 setup once; three ECONNRESET drops once, in tests that do not touch
+  the login page); each affected file passed when rerun (05: 63/63,
+  06+09: 30/30). Known keep-alive drop, trigger still not isolated; dev
+  Mayan near its memory limit after Docker restart.
+
 Next unit: not started. Waiting for review.

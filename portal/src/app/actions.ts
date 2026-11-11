@@ -3,7 +3,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { CHANGE_PASSWORD_PATH } from '@/lib/auth';
-import { config, SESSION_COOKIE } from '@/lib/config';
+import { config, SESSION_COOKIE, SIGNED_OUT_COOKIE } from '@/lib/config';
 import { revokeToken, signIn } from '@/lib/mayan';
 import {
   createSession,
@@ -91,5 +91,14 @@ export async function logout(): Promise<void> {
     deleteSessionsForToken(session.token);
   }
   store.delete(SESSION_COOKIE);
+  // One-time note for the sign-in page: shown only after this real sign-out
+  // (not when someone opens /login?signedout=1). Cleared on first display.
+  store.set(SIGNED_OUT_COOKIE, '1', {
+    httpOnly: false,
+    sameSite: 'lax',
+    secure: config.cookieSecure,
+    path: '/login',
+    maxAge: 120,
+  });
   redirect('/login?signedout=1');
 }

@@ -84,3 +84,30 @@ Checks on the refined design (real Edge, `scripts/screenshots-login.mjs`):
 - Empty-field inline errors work. After a wrong password the username is kept and the password is not in the HTML.
 - Lockout message, "Signing in…" with the button disabled, and the first-login flow all work.
 - Typecheck, lint and build clean; unit tests 13/13; integration tests **178/178** (sign-in, lockout, first-login, session and permission regressions).
+
+## Final refinement and polish (branch `login-final`)
+
+Screenshots: `docs/screenshots/login-refresh/final/`, with measured checks in `index.json`.
+
+- **Logo:** the original PNG is 3375×3375 with about 30% empty space around the artwork, so it looked small in any container. `public/recafco-logo-mark.png` is a copy cropped to the artwork's bounding box (1% margin) and resized to 640×501. The artwork, colours and proportions are unchanged, and the original file is kept. The tile is 96px on desktop (artwork 80px wide) and 72px on mobile.
+- **Beside the logo:** "Document / Management" in 18px medium weight, without wide letter spacing.
+- **Headline:** "Documents across / departments. / Together in one place." at 30px with 1.3 line height, plus the small red accent. The supporting paragraph was removed.
+- **Card:** 1040px wide, split 39% / 61% (measured 405 / 633px), with a content-driven height. The plain sign-in measures 555px tall at 1440px. Errors and the first-login password form make it taller; nothing is clipped.
+- **Background:** the page uses a warm grey (`--color-canvas-warm: #f3f2ef`), with a white form surface, the charcoal branding panel and RECAFCO red.
+- **Form:**
+  - "Welcome back" / "Sign in to RECAFCO Documents."; the form column is 400px wide;
+  - 16px labels, with 52px fields and button (measured);
+  - eye-icon toggle "Show password" / "Hide password";
+  - the divider was removed. "Need help? Contact your system administrator." sits 24px below the button at 15px muted grey (6.3:1 on white).
+- **Signed-out feedback:** shown only after a real sign-out. The sign-out action sets a one-time, non-secret cookie (`recafco_signed_out`, path `/login`, 2 minutes). The page reads it on the server, so it renders with the page and causes no layout shift; it is announced with `role="status"`. A small client component clears the cookie and removes `?signedout=1` from the address. Measured: shown after signing out; not shown after a reload; not shown when `/login?signedout=1` is typed. The redirect still goes to `/login?signedout=1`, so existing tests and bookmarks behave the same.
+- **"Blue fields":** our inputs are white with a grey border and turn blue only on keyboard focus. A pale-blue *fill* is the browser's native autofill styling (Chrome/Edge `:-webkit-autofill`), which also sets its own text colour. Autofill and password managers are untouched. Autofilled fields are restyled to a light tint with our dark text, so they stay readable and recognisably filled. This could not be triggered in headless Edge, which has no saved credentials; it needs a manual check in a normal browser.
+
+Checks:
+- Populated fields, empty-field errors, wrong password (username kept, password not in the HTML), lockout, "Signing in…" (button disabled), Show/Hide name and type, keyboard order and focus, signed-out once only, first-login password change.
+- Desktop 1440/1920, tablet, phone, 1440×600, phone with keyboard (390×480) and 200% zoom: no horizontal scrolling, nothing clipped.
+
+Tests for this final version:
+- Typecheck, lint and build are clean; unit tests 13/13.
+- Integration, first full run: 115 passed. File 05 stopped in its setup (63 tests skipped) when an admin API query returned no data; run alone, 05 passed 63/63. The setup line now fails with the real status and reply body.
+- Integration, second full run: 175/178 passed. File 05 passed, but three tests in files 06 and 09 failed with `fetch failed: ECONNRESET` (a dropped connection, not an assertion). Two of them call the Mayan API directly and never touch the portal or the sign-in page, so the login change cannot cause them. Rerun alone, 06 and 09 passed 30/30.
+- Cause, partly established: these match the intermittent keep-alive connection drop known since Units 1 and 3; the Mayan web workers were recycled during the run. The dev Mayan container also ran close to its 2.5 GiB memory limit after Docker Desktop restarted (memory.events `max 130`, `oom_kill 0`, so nothing was killed). The exact trigger is still not isolated (open since Unit 3).

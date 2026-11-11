@@ -190,17 +190,22 @@ async function fresh(path = '/login') {
 
 // Test accounts for this run (dev stack only): one with a pending first-login
 // change, one that will be locked. Passwords are throwaway values.
-const admin = (await api('/recafco/auth/login/', { body: { username: 'dev_admin', password: env.RECAFCO_DEV_PASSWORD_ADMIN } })).body.token;
+// LOGIN_SHOTS_STATIC=1: only the views that need no Mayan (layout, short
+// screens, zoom, typed ?signedout=1). Used when the dev stack is down.
+const STATIC = process.env.LOGIN_SHOTS_STATIC === '1';
 const firstUser = `first_${RUN}`;
 const lockUser = `lock_${RUN}`;
 // Wrong passwords are tried only on a throwaway account, never on dev users.
 const wrongUser = `wrong_${RUN}`;
-for (const username of [firstUser, lockUser, wrongUser]) {
-  const created = await api('/recafco/admin/users/', { token: admin, body: { username, password: '123', first_name: 'Sample', last_name: 'Employee' } });
-  if (created.status !== 201) throw new Error(`Could not create ${username}: ${created.status}`);
+if (!STATIC) {
+  const admin = (await api('/recafco/auth/login/', { body: { username: 'dev_admin', password: env.RECAFCO_DEV_PASSWORD_ADMIN } })).body.token;
+  for (const username of [firstUser, lockUser, wrongUser]) {
+    const created = await api('/recafco/admin/users/', { token: admin, body: { username, password: '123', first_name: 'Sample', last_name: 'Employee' } });
+    if (created.status !== 201) throw new Error(`Could not create ${username}: ${created.status}`);
+  }
+  const lockToken = (await api('/recafco/auth/login/', { body: { username: lockUser, password: '123' } })).body.token;
+  await api('/recafco/auth/password/', { token: lockToken, body: { current_password: '123', new_password: 'right12' } });
 }
-const lockToken = (await api('/recafco/auth/login/', { body: { username: lockUser, password: '123' } })).body.token;
-await api('/recafco/auth/password/', { token: lockToken, body: { current_password: '123', new_password: 'right12' } });
 
 mkdirSync(out, { recursive: true });
 await send('Page.enable');
@@ -211,11 +216,51 @@ try {
   await fresh();
   for (const key of ['phone', 'tablet', 'desktop', 'wide']) await snap(`01-login-${key}`, WIDTHS[key]);
   checks.autocomplete = await evaluate(`({ username: document.querySelector('#username')?.autocomplete, password: document.querySelector('#password')?.autocomplete, usernameValue: document.querySelector('#username')?.value, passwordValue: document.querySelector('#password')?.value })`);
+  // Populated fields and the card's real height at 1440px (target ~560px).
+  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  await fresh();
+  await typeInto('#username', 'ahmed.k');
+  await typeInto('#password', 'example-pass');
+  checks.desktopCard = await evaluate(`(() => { const card = document.querySelector('main > div'); const r = card.getBoundingClientRect(); const cols = [...card.children].map((c) => Math.round(c.getBoundingClientRect().width)); return { width: Math.round(r.width), height: Math.round(r.height), columns: cols }; })()`);
+  checks.fieldHeights = await evaluate(`({ username: document.querySelector('#username').getBoundingClientRect().height, password: document.querySelector('#password').getBoundingClientRect().height, button: document.querySelector('main form button[type=submit]').getBoundingClientRect().height, label: getComputedStyle(document.querySelector('label[for=username]')).fontSize })`);
+  await snap('01b-populated-desktop', WIDTHS.desktop);
+  if (STATIC) {
+    await fresh('/login?signedout=1');
+    checks.typedSignedOutUrlShowsStatus = await evaluate(`document.body.innerText.includes('You have signed out')`);
+    await snap('02-typed-signedout-url-no-status', WIDTHS.desktop);
+    await fresh();
+    await typeInto('#password', 'example-pass');
+    await evaluate(`document.querySelector('[aria-controls=password]').click()`);
+    await sleep(200);
+    checks.toggleAfter = await evaluate(`document.querySelector('[aria-controls=password]').getAttribute('aria-label') + ' | type=' + document.querySelector('#password').type`);
+    await snap('05-password-shown-desktop', WIDTHS.desktop);
+    await fresh();
+    await snap('09-short-desktop-1440x600', [1440, 600, false]);
+    await snap('09-phone-keyboard-open-390x480', [390, 480, true]);
+    await snap('09-zoom-200-desktop', [720, 450, false], 2);
+    throw new Error('STATIC_DONE');
+  }
 
-  // 2. Signed out.
-  await fresh('/login?signedout=1');
+  // 2. Signed out: a real sign-out shows the note once; a reload or a typed
+  //    /login?signedout=1 does not.
+  const statusShown = () => evaluate(`!!document.querySelector('[role=status]') && document.body.innerText.includes('You have signed out')`);
+  await fresh();
+  await typeInto('#username', 'dev_employee_a');
+  await typeInto('#password', env.RECAFCO_DEV_PASSWORD_EMPLOYEE_A);
+  await submit();
+  await waitFor(`location.pathname === '/'`);
+  await evaluate(`document.querySelector('#signout-form button').click()`);
+  await waitFor(`location.pathname === '/login' && document.readyState === 'complete'`);
+  await sleep(500);
+  checks.signedOut = { shownAfterSignOut: await statusShown(), addressAfter: await evaluate('location.pathname + location.search') };
   await snap('02-signed-out-desktop', WIDTHS.desktop);
   await snap('02-signed-out-phone', WIDTHS.phone);
+  await send('Page.reload');
+  await sleep(1500);
+  checks.signedOut.shownAfterReload = await statusShown();
+  await fresh('/login?signedout=1');
+  checks.signedOut.shownForTypedUrl = await statusShown();
+  await snap('02-typed-signedout-url-no-status', WIDTHS.desktop);
 
   // 3. Empty submit.
   await fresh();
@@ -300,6 +345,8 @@ try {
   await waitFor(`document.body.innerText.includes('Use at least 6 characters')`);
   await snap('11-first-login-too-short-desktop', WIDTHS.desktop);
   await snap('11-first-login-too-short-phone', WIDTHS.phone);
+} catch (error) {
+  if (error.message !== 'STATIC_DONE') throw error;
 } finally {
   await send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }).catch(() => {});
   socket.close();

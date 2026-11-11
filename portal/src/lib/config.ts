@@ -50,3 +50,5 @@ export const config = {
 };
 
 export const SESSION_COOKIE = 'recafco_portal_session';
+/** Set only by the sign-out action, read once by the sign-in page. Not secret. */
+export const SIGNED_OUT_COOKIE = 'recafco_signed_out';

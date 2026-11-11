@@ -62,7 +62,10 @@ beforeAll(async () => {
   ids.a2 = await upload(b, `DA2-${RUN}`, deptA.name, CATEGORY, `gamma only${RUN}`);
   ids.conf = dev<{ document_id: number }>('confidential-sample', '--label', `DCONF-${RUN}`, '--text', `conf ${SHARED}`, '--department', deptA.name).document_id;
 
-  userIdB = (await json(tD, '/recafco/admin/users/?q=dev_employee_b')).body.results[0].id;
+  const userB = await json(tD, '/recafco/admin/users/?q=dev_employee_b');
+  // Fail with the real answer (status and body), not a TypeError.
+  expect(userB.status, JSON.stringify(userB.body).slice(0, 300)).toBe(200);
+  userIdB = userB.body.results[0].id;
 });
 
 afterAll(async () => {

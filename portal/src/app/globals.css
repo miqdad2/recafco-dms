@@ -17,6 +17,7 @@
   --color-line: #d8dbdf;         /* borders between surfaces */
   --color-line-strong: #8a9199;  /* form control borders; 3.3:1 on white */
   --color-canvas: #f4f5f6;       /* page background */
+  --color-canvas-warm: #f3f2ef;  /* sign-in page background (warm grey) */
   --color-surface: #ffffff;
   --color-hover: #eef0f2;
   --color-ok: #136a2f;
@@ -56,6 +57,22 @@ body {
   outline: 3px solid var(--color-info);
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+/*
+ * Browser autofill (Chrome/Edge paint autofilled fields pale blue with their
+ * own text colour). Keep the autofill and password-manager behaviour, but
+ * show it as a light tint with our dark text so it stays readable. The long
+ * transition stops the browser repainting its own background colour.
+ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--color-ink);
+  caret-color: var(--color-ink);
+  -webkit-box-shadow: 0 0 0 1000px var(--color-info-soft) inset;
+  box-shadow: 0 0 0 1000px var(--color-info-soft) inset;
+  transition: background-color 600000s 0s;
 }
 
 /* Long English or Arabic file names wrap instead of widening the page. */
