@@ -84,7 +84,7 @@ Administrators cannot reset their own password there; they use "Change password"
 
 ## Production settings required (not applied anywhere but the dev stack)
 
-See the README section "Accounts and sign-in". Without `MAYAN_EXTRA_SETTINGS_FUNCTION_LIST`, the pending-change rule holds only in the portal, not on direct Mayan access. Without the lockout settings, there is no lockout. Applying them to the company server is a deployment step that needs approval.
+See `docs/setup.md`, section "Accounts and sign-in". Without `MAYAN_EXTRA_SETTINGS_FUNCTION_LIST`, the pending-change rule holds only in the portal, not on direct Mayan access. Without the lockout settings, there is no lockout. Applying them to the company server is a deployment step that needs approval.
 
 ## Screenshots (`docs/screenshots/unit-4/`)
 

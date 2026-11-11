@@ -1,8 +1,12 @@
-# Secrets
+# Secrets (templates named .env.example are committed)
 .env
 .env.*
 !.env.example
 deploy/dev/.env
+*.pem
+*.key
+*.p12
+*.pfx
 
 # Node / Next.js
 node_modules/
@@ -18,3 +22,18 @@ __pycache__/
 
 # Test output
 portal/test-results/
+
+# Runtime data: sessions, databases, uploads, backups, logs
+.data/
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.db
+uploads/
+media/
+backups/
+*.bak
+*.dump
+*.backup
+logs/
+*.log

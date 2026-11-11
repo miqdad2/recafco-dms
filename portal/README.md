@@ -1,7 +1,7 @@
 # portal
 
-The RECAFCO employee portal (Next.js 16). See the repository
-[README](../README.md) for setup, and [CLAUDE.md](../CLAUDE.md) for the
+The RECAFCO employee portal (Next.js 16). See
+[docs/setup.md](../docs/setup.md) for setup, and [CLAUDE.md](../CLAUDE.md) for the
 rules this code must keep.
 
 - `src/lib/`: server-only code: config, session store, Mayan client, auth.
