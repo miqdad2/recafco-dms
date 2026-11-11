@@ -13,7 +13,7 @@ Rules kept here:
 """
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import IntegrityError, transaction
 from django.core.validators import validate_email
 from django.db.models import Count, Q
@@ -31,7 +31,7 @@ from mayan.apps.permissions.models import Role
 from .access import is_system_account
 from .literals import (
     ADMIN_PAGE_SIZE, CONFIDENTIAL_GROUP_NAME_MAX_LENGTH, CONFIDENTIAL_GROUP_PREFIX, DEPARTMENT_ICONS,
-    GROUP_ADMINISTRATORS_NAME, GROUP_EMPLOYEES_NAME,
+    GROUP_ADMINISTRATORS_NAME, GROUP_EMPLOYEES_NAME, ROLE_ADMINISTRATORS_LABEL,
     METADATA_TYPE_CATEGORY_NAME, METADATA_TYPE_DEPARTMENT_NAME,
     PASSWORD_REASON_CREATED, QUERY_MAX_LENGTH
 )
@@ -45,7 +45,7 @@ from .models import (
 from .passwords import (
     clean_new_username, clean_temporary_password, set_temporary_password
 )
-from .permission_model import READ_PERMISSIONS
+from .permission_model import ADMIN_DOCUMENT_PERMISSIONS, READ_PERMISSIONS
 from .services import (
     InputRejected, audit, clean_name, get_metadata_type,
     serialize_category, serialize_department, sync_metadata_lookups,
@@ -88,11 +88,12 @@ def _rename_metadata_values(actor, metadata_name, old, new):
 def list_departments():
     """All departments with their total document count (any access level).
     Only the count is exposed here, never confidential titles."""
-    counts = dict(
-        Department.objects.annotate(total=Count('classifications')).values_list(
-            'pk', 'total'
-        )
-    )
+    counts = {
+        row['pk']: row for row in Department.objects.annotate(
+            total=Count('classifications'),
+            trashed=Count('classifications', filter=Q(classifications__document__in_trash=True))
+        ).values('pk', 'total', 'trashed')
+    }
     controllers = {}
     for assignment in ControllerAssignment.objects.select_related('user').order_by(
         'user__username'
@@ -104,7 +105,11 @@ def list_departments():
         dict(
             serialize_department(department=department),
             controllers=controllers.get(department.pk, []),
-            total_documents=counts.get(department.pk, 0)
+            total_documents=counts.get(department.pk, {}).get('total', 0),
+            usage={
+                'documents': counts.get(department.pk, {}).get('total', 0) - counts.get(department.pk, {}).get('trashed', 0),
+                'documents_in_recycle_bin': counts.get(department.pk, {}).get('trashed', 0)
+            }
         ) for department in Department.objects.all()
     ]
 
@@ -192,13 +197,20 @@ def reorder_departments(actor, ids):
 # ------------------------------------------------------------- categories
 
 def list_categories():
-    totals = dict(
-        Category.objects.annotate(total=Count('classifications')).values_list(
-            'pk', 'total'
-        )
-    )
+    totals = {
+        row['pk']: row for row in Category.objects.annotate(
+            total=Count('classifications'),
+            trashed=Count('classifications', filter=Q(classifications__document__in_trash=True))
+        ).values('pk', 'total', 'trashed')
+    }
     return [
-        dict(serialize_category(category), total_documents=totals.get(category.pk, 0))
+        dict(
+            serialize_category(category), total_documents=totals.get(category.pk, {}).get('total', 0),
+            usage={
+                'documents': totals.get(category.pk, {}).get('total', 0) - totals.get(category.pk, {}).get('trashed', 0),
+                'documents_in_recycle_bin': totals.get(category.pk, {}).get('trashed', 0)
+            }
+        )
         for category in Category.objects.all()
     ]
 
@@ -278,6 +290,10 @@ def serialize_user(user):
         'is_employee': GROUP_EMPLOYEES_NAME in group_names,
         'last_login': user.last_login.isoformat() if user.last_login else None,
         'last_name': user.last_name,
+        'roles': [
+            {'id': role.pk, 'name': role.name}
+            for role in user.recafco_app_roles.filter(system_key__isnull=True).order_by('name')
+        ],
         'locked_out': is_user_locked(user=user),
         'must_change_password': PasswordState.objects.filter(
             user=user, must_change=True
@@ -415,10 +431,15 @@ def create_user(
 def update_user(
     actor, user, first_name=None, last_name=None, email=None, is_active=None,
     is_employee=None, is_administrator=None, department_ids=None,
-    controller_department_ids=None
+    controller_department_ids=None, username=None
 ):
-    if is_system_account(user):
-        raise InputRejected(field='form', message='System accounts are managed elsewhere.')
+    from .admin_operations import ensure_may_manage, ensure_not_last_admin
+    from .app_permissions import is_system_admin
+
+    ensure_may_manage(actor, user)
+    if is_administrator is not None and not is_system_admin(actor):
+        # Granting or removing administrative authority: System Administrators only.
+        raise PermissionDenied
     if user.pk == actor.pk:
         if is_active is False:
             raise InputRejected(field='is_active', message='You cannot deactivate your own account.')
@@ -427,6 +448,13 @@ def update_user(
                 field='is_administrator',
                 message='You cannot remove your own administrator role.'
             )
+    if is_active is False:
+        ensure_not_last_admin(user, field='is_active')
+    if is_administrator is False:
+        ensure_not_last_admin(user, field='is_administrator')
+    new_username = None
+    if username is not None and username.strip().lower() != user.username:
+        new_username = clean_new_username(username)
 
     department_ids = _validate_new_assignment_ids(
         ids=department_ids, field='department_ids', model=DepartmentAssignment, user=user
@@ -437,6 +465,9 @@ def update_user(
     )
     changes = {}
     with transaction.atomic():
+        if new_username:
+            changes['username'] = [user.username, new_username]
+            user.username = new_username
         for field, value in (('first_name', first_name), ('last_name', last_name)):
             if value is not None:
                 value = value.strip()[:150]
@@ -543,6 +574,13 @@ def create_confidential_group(actor, name):
             AccessControlList.objects.grant(
                 obj=document_type, permission=permission, role=role
             )
+        # System Administrators can open every confidential group's documents.
+        admin_role = Role.objects.filter(label=ROLE_ADMINISTRATORS_LABEL).first()
+        if admin_role is not None:
+            for permission in ADMIN_DOCUMENT_PERMISSIONS:
+                AccessControlList.objects.grant(
+                    obj=document_type, permission=permission, role=admin_role
+                )
         access_group = ConfidentialAccessGroup.objects.create(
             document_type=document_type, group=group, name=name, role=role
         )

@@ -4,6 +4,77 @@ Business decisions confirmed by RECAFCO, and the technical decisions that
 follow from them. Newest first. Do not implement anything here as a rule
 unless it is marked **confirmed**.
 
+## 2026-11-11 — Unit 5: full administrator control (changed policy)
+
+### Confirmed by RECAFCO (this request explicitly supersedes earlier rules)
+
+The following earlier rules **no longer apply**:
+- "Nothing is deleted; administrators only deactivate" (Unit 2).
+- "Administrator privileges alone grant no content access; an administrator
+  must be a member of a confidential group to open its documents" (Unit 3).
+- "No confidential → general release" (Unit 3).
+
+New rules:
+- System Administrators can create, edit, merge and **delete** departments,
+  categories, user accounts, roles and confidential groups, and can move
+  documents to a recycle bin, restore them and delete them permanently.
+- System Administrators can open **every** general and confidential document
+  (preview, download, search, every stored file version).
+- Administrators can make a confidential document general again, by an
+  explicit action only. Deleting a confidential group never makes its
+  documents general.
+- System Administrator is a protected built-in role. Other roles can be
+  created and assigned only by System Administrators.
+
+### Technical decisions
+
+- **Document access for System Administrators.** The "RECAFCO Administrators"
+  group is attached to one Mayan role, "RECAFCO System Administrators", with
+  ACLs on every RECAFCO document type (read, download, file and version view,
+  edit properties, recycle, restore and delete). There are still no global
+  Mayan permissions; `recafco_setup` verifies this. Employees and controllers
+  are unchanged, and new confidential groups automatically include the admin
+  role.
+- **Application roles.** `AppRole` holds named sets of grantable permissions:
+  departments, categories, users, confidential groups, document management,
+  recycle bin, permanent deletion and the activity log. `roles.manage` and
+  administrative authority are not grantable. Every admin endpoint checks
+  one permission on every request. Document operations still apply only to
+  documents the actor can open through Mayan's ACLs, so a role never gives
+  document access by itself.
+- **Deletion never cascades silently to files.**
+  - Departments: delete only when empty; otherwise "move documents to
+    another department" (merge) or "move documents to the recycle bin".
+  - Categories: documents must move to another category first.
+  - Confidential groups: documents move to another group or are permanently
+    deleted (explicit choice). The built-in original group shares the
+    controllers' role and is not deletable.
+  - Permanent deletion is allowed only from the recycle bin. It deletes
+    stored files, file and version page caches, versions and records, and
+    reports success only after verifying the stored files are gone.
+- **Accounts.** Deleting an account keeps documents. The uploader and the
+  activity log keep a name snapshot ("… (account deleted)").
+  Responsibilities can be transferred to another person; otherwise they fall
+  back to each document's original uploader. Tokens are deleted at once.
+  The last active System Administrator cannot be removed or deactivated, and
+  nobody can remove their own administrator role or delete their own
+  account.
+- **Activity log.** Entries gain `reason`, `outcome` (success or failed) and
+  actor name snapshots. They cannot be changed or deleted through the
+  application (the model refuses). A failed operation is recorded as
+  "failed" after its rollback. The log can be searched, filtered and
+  exported as CSV, with spreadsheet formulas neutralised.
+- **Concurrency.** Every operation locks its rows inside a transaction. Bulk
+  actions run one transaction per document, with a per-document result.
+- **Result messages.** When an action removes the row or list item that
+  holds its form, the browser is sent to the list with a fixed result code
+  and the page shows the message (known codes only; no text from the URL).
+- **Connections to Mayan.** Writes use a new connection each time; reads
+  reuse connections (1 s idle) and are retried once. Gunicorn closes
+  keep-alive connections when idle for 2 s and when it recycles a worker,
+  which made some writes fail with "other side closed" with no way to know
+  whether they ran. Adds the `undici` package (MIT), pinned to 7.30.2.
+
 ## 2026-11-11 — Unit 4: local username/password accounts
 
 ### Rules given by RECAFCO for this unit

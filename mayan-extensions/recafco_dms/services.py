@@ -190,7 +190,9 @@ def get_editable_department_ids(document, user):
     active_ids = set(
         Department.objects.filter(is_active=True).values_list('pk', flat=True)
     )
-    if is_portal_admin(user=user):
+    from .app_permissions import has_app_permission
+
+    if is_portal_admin(user=user) or has_app_permission(user=user, permission='documents.manage'):
         return active_ids
     controlled = get_controller_department_ids(user=user)
     classification = get_classification(document=document)
@@ -376,6 +378,10 @@ def create_portal_upload(
         if not is_portal_admin(user=user):
             raise PermissionDenied
         group = get_confidential_group(confidential_group_id)
+        if not group.is_active:
+            raise InputRejected(
+                field='confidential_group', message='This confidential group is deactivated.'
+            )
         document_type = group.document_type
 
     return create_document(
@@ -441,8 +447,9 @@ def responsible_display(document, upload):
         responsibility = None
     if responsibility is not None:
         return dict(user_display(user=responsibility.person), assigned=True)
-    if upload is not None:
-        return dict(user_display(user=upload.uploader), assigned=False)
+    uploader = uploader_display(upload=upload)
+    if uploader is not None:
+        return dict(uploader, assigned=False)
     return None
 
 
@@ -468,7 +475,7 @@ def serialize_document(document, user):
     that `user` may view `document`.
     """
     classification = get_classification(document=document)
-    if classification is not None:
+    if classification is not None and classification.department_id and classification.category_id:
         department = classification.department
         category = classification.category
         department_data = {'id': department.pk, 'name': department.name}
@@ -522,11 +529,11 @@ def serialize_document(document, user):
             'size': file_latest.size or (upload.size if upload else None)
         } if file_latest else None,
         'id': document.pk,
-        'is_mine': bool(upload and upload.uploader_id == user.pk),
+        'is_mine': bool(upload and upload.uploader_id and upload.uploader_id == user.pk),
         'label': document.label,
         'state': get_processing_state(document=document),
         # Original uploader: immutable evidence; null when not recorded.
-        'uploaded_by': user_display(user=upload.uploader) if upload else None,
+        'uploaded_by': uploader_display(upload=upload),
         'responsible': responsible_display(document=document, upload=upload),
         'confidential_group': confidential_group_display(document=document),
         'version': {
@@ -692,25 +699,50 @@ def set_favorite(document, user, value):
 
 # ---------------------------------------------------------------- audit
 
-def audit(actor, action, target, details=None, target_type=None):
+def audit(actor, action, target, details=None, target_type=None, reason='', outcome='success'):
     AuditEntry.objects.create(
-        action=action, actor=actor, details=details or {},
-        target_id=target.pk, target_label=str(target)[:255],
+        action=action, actor=actor, details=details or {}, outcome=outcome,
+        reason=reason or '', target_id=target.pk, target_label=str(target)[:255],
         target_type=target_type or target._meta.model_name
     )
 
 
 def serialize_audit_entry(entry):
+    if entry.actor is not None:
+        actor = user_display(user=entry.actor)
+    elif entry.actor_username:
+        actor = {
+            'deleted': True, 'id': None, 'username': entry.actor_username,
+            'full_name': '{} (account deleted)'.format(entry.actor_full_name or entry.actor_username)
+        }
+    else:
+        actor = None
     return {
         'action': entry.action,
-        'actor': user_display(user=entry.actor),
+        'actor': actor,
         'datetime': entry.datetime_created.isoformat(),
         'details': entry.details,
         'id': entry.pk,
+        'outcome': entry.outcome,
+        'reason': entry.reason,
         'target_id': entry.target_id,
         'target_label': entry.target_label,
         'target_type': entry.target_type
     }
+
+
+def uploader_display(upload):
+    """The original uploader; keeps the name if the account was deleted."""
+    if upload is None:
+        return None
+    if upload.uploader is not None:
+        return user_display(user=upload.uploader)
+    if upload.uploader_username:
+        return {
+            'deleted': True, 'id': None, 'username': upload.uploader_username,
+            'full_name': '{} (account deleted)'.format(upload.uploader_full_name or upload.uploader_username)
+        }
+    return None
 
 
 # ------------------------------------------------------ document details

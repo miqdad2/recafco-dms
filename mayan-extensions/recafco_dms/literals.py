@@ -29,6 +29,9 @@ CONFIDENTIAL_GROUP_ORIGINAL_NAME = 'Confidential (original group)'
 # Members may use the RECAFCO administration area. The group carries no
 # Mayan permissions: the extension authorizes admin requests itself.
 GROUP_ADMINISTRATORS_NAME = 'RECAFCO Administrators'
+# Unit 5: the Mayan role that gives System Administrators access to every
+# RECAFCO document (ACLs only, no global permissions).
+ROLE_ADMINISTRATORS_LABEL = 'RECAFCO System Administrators'
 
 # Prefix of the Mayan document type, role and group created for each
 # additional confidential access group.

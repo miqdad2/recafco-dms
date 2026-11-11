@@ -179,12 +179,34 @@ api_urls = [
     re_path(
         route=r'^recafco/admin/audit/$', name='recafco-admin-audit',
         view=admin.APIAdminAuditView.as_view()
+    ),
+    re_path(
+        route=r'^recafco/admin/audit/export/$', name='recafco-admin-audit-export',
+        view=admin.APIAdminAuditExportView.as_view()
+    ),
+    re_path(
+        route=r'^recafco/admin/users/{}/roles/$'.format(ID.format('user_id')),
+        name='recafco-admin-user-roles', view=admin.APIAdminUserRolesView.as_view()
+    ),
+    re_path(
+        route=r'^recafco/admin/roles/$', name='recafco-admin-roles',
+        view=admin.APIAdminRoleListView.as_view()
+    ),
+    re_path(
+        route=r'^recafco/admin/roles/{}/$'.format(ID.format('role_id')),
+        name='recafco-admin-role-detail', view=admin.APIAdminRoleDetailView.as_view()
+    ),
+    re_path(
+        route=r'^recafco/admin/documents/bulk/$', name='recafco-admin-documents-bulk',
+        view=admin.APIAdminDocumentBulkView.as_view()
     )
 ]
 
-# Every admin route must be guarded. Checked at import time so a new admin
-# view without IsPortalAdmin fails loudly instead of being exposed.
+# Every admin route must be guarded by the application permissions (Unit 5).
+# Checked at import time so a new admin view without them fails loudly
+# instead of being exposed.
 for _pattern in api_urls:
     if _pattern.name.startswith('recafco-admin-'):
-        if admin.IsPortalAdmin not in _pattern.callback.view_class.permission_classes:
-            raise ImproperlyConfigured(_pattern.name + " lacks IsPortalAdmin")
+        _view = _pattern.callback.view_class
+        if not issubclass(_view, admin.AdminAPIView) or admin.CanUseAdminArea not in _view.permission_classes:
+            raise ImproperlyConfigured(_pattern.name + " is not an application-permission guarded admin view")

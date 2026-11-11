@@ -1,39 +1,77 @@
 import Link from 'next/link';
 import { AppShell } from '@/components/app-shell';
 import { Breadcrumb, buttonPrimary } from '@/components/ui';
+import type { AdminAccess } from '@/lib/admin';
 import type { Session } from '@/lib/session-store';
 
-export type AdminSection = 'overview' | 'departments' | 'categories' | 'users' | 'confidential' | 'documents' | 'activity';
+export type AdminSection =
+  | 'overview'
+  | 'departments'
+  | 'categories'
+  | 'users'
+  | 'roles'
+  | 'confidential'
+  | 'documents'
+  | 'activity';
+
+const DOCUMENT_PERMISSIONS = ['documents.manage', 'documents.recycle', 'documents.purge'];
+
+/**
+ * Which application permission opens each section. The extension checks
+ * the same permissions on every request; this only decides what to show.
+ */
+export function sectionAllowed(access: AdminAccess, section: AdminSection): boolean {
+  switch (section) {
+    case 'overview':
+      return access.allowed;
+    case 'departments':
+      return access.can('departments.manage');
+    case 'categories':
+      return access.can('categories.manage');
+    case 'users':
+      return access.can('users.manage');
+    case 'roles':
+      return access.can('roles.manage');
+    case 'confidential':
+      return access.can('confidential_groups.manage');
+    case 'documents':
+      return DOCUMENT_PERMISSIONS.some((permission) => access.can(permission));
+    case 'activity':
+      return access.can('activity.view');
+  }
+}
 
 const sections: { id: AdminSection; href: string; label: string }[] = [
   { id: 'overview', href: '/admin', label: 'Overview' },
+  { id: 'documents', href: '/admin/documents', label: 'Documents' },
   { id: 'departments', href: '/admin/departments', label: 'Departments' },
   { id: 'categories', href: '/admin/categories', label: 'Categories' },
-  { id: 'users', href: '/admin/users', label: 'Users and roles' },
+  { id: 'users', href: '/admin/users', label: 'Users' },
+  { id: 'roles', href: '/admin/roles', label: 'Roles' },
   { id: 'confidential', href: '/admin/confidential-groups', label: 'Confidential groups' },
-  { id: 'documents', href: '/admin/documents', label: 'Documents' },
   { id: 'activity', href: '/admin/activity', label: 'Activity log' },
 ];
 
 export function AdminShell({
-  session,
+  access,
   section,
   title,
   crumbs = [],
   children,
 }: {
-  session: Session;
+  access: AdminAccess;
   section: AdminSection;
   title: string;
   crumbs?: { href?: string; label: string }[];
   children: React.ReactNode;
 }) {
+  const visible = sections.filter((item) => sectionAllowed(access, item.id));
   return (
-    <AppShell session={session} section="admin">
+    <AppShell session={access.session} section="admin">
       <div className="flex flex-col gap-3">
         <nav aria-label="Administration" className="border-b border-line">
           <ul className="-mb-px flex flex-wrap gap-x-1">
-            {sections.map((item) => {
+            {visible.map((item) => {
               const current = item.id === section;
               return (
                 <li key={item.id}>
@@ -59,7 +97,7 @@ export function AdminShell({
   );
 }
 
-/** Shown to signed-in users who are not RECAFCO administrators. */
+/** Shown to signed-in users without permission for this part of the area. */
 export function NotAuthorized({ session }: { session: Session }) {
   return (
     <AppShell session={session}>

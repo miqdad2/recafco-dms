@@ -1,0 +1,128 @@
+{
+  "results": [
+    {
+      "name": "01-admin-overview",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "02-roles-list-and-create",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "03-role-detail",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "04-department-delete-dialog",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "04b-department-deleted",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "05-department-populated-dialog",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "06-category-delete-dialog",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "07-documents-bulk-bar",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "08-bulk-confirm-dialog",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "08b-bulk-result",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "09-recycle-bin",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "10-admin-document-page",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "10b-page-trash-result",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "11-purge-dialog",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "12-user-page-roles-delete",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "13-user-delete-dialog",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "14-confidential-group-delete-dialog",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "15-activity-log-filters",
+      "width": 1440,
+      "horizontalScroll": false
+    },
+    {
+      "name": "16-documents-phone",
+      "width": 390,
+      "horizontalScroll": false
+    },
+    {
+      "name": "17-roles-phone",
+      "width": 390,
+      "horizontalScroll": false
+    },
+    {
+      "name": "18-activity-phone",
+      "width": 390,
+      "horizontalScroll": false
+    }
+  ],
+  "checks": {
+    "roleCreatedInUi": true,
+    "departmentDeletedInUi": true,
+    "bulkTrashInUi": true,
+    "bulkTrashServer": true,
+    "bulkRestoreInUi": true,
+    "employeeSeesRestored": true,
+    "pageTrashInUi": true,
+    "purgeInUi": true,
+    "purgeServer404": true,
+    "userDeletedInUi": true,
+    "exportLink": true,
+    "exportThroughPortal": {
+      "status": 200,
+      "type": "text/csv; charset=utf-8"
+    },
+    "employeeAdminLink": false,
+    "employeeRefused": true
+  }
+}

@@ -11,7 +11,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .access import is_portal_admin
+from .app_permissions import can_use_admin_area
 from .passwords import (
     LoginUsernameRateThrottle, SignInLocked, SignInRejected,
     change_own_password, sign_in
@@ -77,7 +77,7 @@ class APIPortalLoginView(APIView):
             # Roles are not read while a change is pending: nothing else is
             # available to the account until then.
             body['can_upload'] = user_can_upload(user=user)
-            body['is_admin'] = is_portal_admin(user=user)
+            body['is_admin'] = can_use_admin_area(user=user)
         return Response(body)
 
 

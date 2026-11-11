@@ -12,23 +12,29 @@ import { mayanJson, mayanSend } from '@/lib/mayan';
  * A success message is shown only after the extension confirmed the change.
  */
 
-type Method = 'POST' | 'PATCH';
+type Method = 'POST' | 'PATCH' | 'DELETE';
 
-async function call(path: string, method: Method, body: unknown, ok: string): Promise<FormState & { body?: unknown }> {
+/**
+ * `ok` must be a non-empty message: callers test `result.errors`, and the
+ * browser shows `ok` as the confirmation.
+ * `redirects`: on success the caller sends the browser to a result page
+ * (FormState.next), which loads fresh data anyway, so no refresh() here.
+ */
+async function call(path: string, method: Method, body: unknown, ok: string, redirects = false): Promise<FormState & { body?: unknown }> {
   const session = await requireSession();
   const result = await withMayan(() => mayanSend(session.token, `/recafco/admin${path}`, method, body));
   if (result.status === 403) {
-    return { errors: { form: 'Only RECAFCO administrators can do this.' }, at: Date.now() };
+    return { errors: { form: 'You do not have permission to do this.' }, at: Date.now() };
   }
   if (result.status === 404) return { errors: { form: 'This item no longer exists.' }, at: Date.now() };
   if (!result.ok) return { errors: errorsFrom(result.body), at: Date.now() };
-  refresh();
+  if (!redirects) refresh();
   return { ok, at: Date.now(), body: result.body };
 }
 
 /** Like call(), but returns only the message to the browser. */
-async function send(path: string, method: Method, body: unknown, ok: string): Promise<FormState> {
-  const result = await call(path, method, body, ok);
+async function send(path: string, method: Method, body: unknown, ok: string, redirects = false): Promise<FormState> {
+  const result = await call(path, method, body, ok, redirects);
   return { ok: result.ok, errors: result.errors, at: result.at };
 }
 
@@ -106,7 +112,7 @@ export async function createUser(_state: FormState, data: FormData): Promise<For
       last_name: text(data, 'last_name'),
       email: text(data, 'email'),
       is_employee: checked(data, 'is_employee'),
-      is_administrator: checked(data, 'is_administrator'),
+      ...(data.has('can_set_administrator') ? { is_administrator: checked(data, 'is_administrator') } : {}),
       department_ids: ids(data, 'department_ids'),
       controller_department_ids: ids(data, 'controller_department_ids'),
     },
@@ -118,15 +124,17 @@ export async function createUser(_state: FormState, data: FormData): Promise<For
 }
 
 export async function updateUser(id: number, _state: FormState, data: FormData): Promise<FormState> {
+  const username = text(data, 'username');
   return send(
     `/users/${id}/`,
     'PATCH',
     {
+      ...(username ? { username } : {}),
       first_name: text(data, 'first_name'),
       last_name: text(data, 'last_name'),
       email: text(data, 'email'),
       is_employee: checked(data, 'is_employee'),
-      is_administrator: checked(data, 'is_administrator'),
+      ...(data.has('can_set_administrator') ? { is_administrator: checked(data, 'is_administrator') } : {}),
       department_ids: ids(data, 'department_ids'),
       controller_department_ids: ids(data, 'controller_department_ids'),
     },
@@ -202,13 +210,198 @@ export async function setResponsiblePerson(id: number, _state: FormState, data: 
  * go back to the document list.
  */
 export async function reclassifyDocument(id: number, _state: FormState, data: FormData): Promise<FormState> {
-  const groupId = Number(text(data, 'confidential_group'));
-  if (!groupId) return { errors: { confidential_group: 'Choose a confidential group.' }, at: Date.now() };
+  const value = text(data, 'confidential_group');
+  const groupId = value === 'general' ? null : Number(value);
+  if (value !== 'general' && !groupId) return { errors: { confidential_group: 'Choose who can open it.' }, at: Date.now() };
   if (data.get('understood') !== 'on') {
     return { errors: { understood: 'Tick the box to confirm you understand.' }, at: Date.now() };
   }
-  const result = await call(`/documents/${id}/reclassify/`, 'POST', { confidential_group: groupId }, 'The document is now confidential.');
+  const result = await call(
+    `/documents/${id}/reclassify/`,
+    'POST',
+    { confidential_group: groupId, reason: text(data, 'reason') },
+    groupId === null ? 'The document is now general: all employees can open it.' : 'The document is now confidential.',
+  );
   const body = result.body as { accessible?: boolean } | undefined;
   if (result.ok && body && body.accessible === false) redirect(`/admin/documents?reclassified=${id}`);
   return { ok: result.ok, errors: result.errors, at: result.at };
+}
+
+// ----------------------------------------------------- Unit 5: deletion
+
+const reason = (data: FormData) => text(data, 'reason');
+const optionalId = (data: FormData, name: string) => {
+  const value = Number(text(data, name));
+  return Number.isInteger(value) && value > 0 ? value : null;
+};
+
+// Deleting removes the row that holds the dialog, so the result is shown by
+// the page itself (see done-notice.tsx) after a redirect.
+export async function deleteDepartment(id: number, _state: FormState, data: FormData): Promise<FormState> {
+  const mode = text(data, 'mode') || null;
+  const result = await send(
+    `/departments/${id}/`,
+    'DELETE',
+    { mode, target_id: mode === 'move' ? optionalId(data, 'target_id') : null, reason: reason(data) },
+    'Department deleted.',
+    true,
+  );
+  if (!result.ok) return result;
+  return { ok: 'Done.', at: Date.now(), next: `/admin/departments?done=${mode === 'move' ? 'department-merged' : mode === 'trash' ? 'department-trashed' : 'department-deleted'}` };
+}
+
+export async function deleteCategory(id: number, _state: FormState, data: FormData): Promise<FormState> {
+  const result = await send(
+    `/categories/${id}/`,
+    'DELETE',
+    { target_id: optionalId(data, 'target_id'), reason: reason(data) },
+    'Category deleted.',
+    true,
+  );
+  if (!result.ok) return result;
+  return { ok: 'Done.', at: Date.now(), next: '/admin/categories?done=category-deleted' };
+}
+
+export async function deleteUser(id: number, _state: FormState, data: FormData): Promise<FormState> {
+  const result = await call(
+    `/users/${id}/`,
+    'DELETE',
+    { transfer_to: optionalId(data, 'transfer_to'), reason: reason(data) },
+    'Account deleted.',
+  );
+  if (result.ok) redirect('/admin/users?deleted=1');
+  return { errors: result.errors, at: result.at };
+}
+
+export async function setUserRoles(id: number, _state: FormState, data: FormData): Promise<FormState> {
+  return send(
+    `/users/${id}/roles/`,
+    'POST',
+    { role_ids: ids(data, 'role_ids'), system_administrator: checked(data, 'system_administrator') },
+    'Roles saved. They apply from the next page the person opens.',
+  );
+}
+
+// ------------------------------------------------------------------ roles
+
+const permissionsFrom = (data: FormData) => data.getAll('permissions').map(String);
+
+export async function createRole(_state: FormState, data: FormData): Promise<FormState> {
+  const result = await call(
+    '/roles/',
+    'POST',
+    { name: text(data, 'name'), description: text(data, 'description'), permissions: permissionsFrom(data) },
+    'Created.',
+  );
+  const created = result.body as { id?: number } | undefined;
+  if (result.ok && created?.id) redirect(`/admin/roles/${created.id}?created=1`);
+  return { errors: result.errors, at: result.at };
+}
+
+export async function updateRole(id: number, _state: FormState, data: FormData): Promise<FormState> {
+  return send(
+    `/roles/${id}/`,
+    'PATCH',
+    { name: text(data, 'name'), description: text(data, 'description'), permissions: permissionsFrom(data) },
+    'Saved. Members get the new permissions on their next page.',
+  );
+}
+
+export async function deleteRole(id: number, _state: FormState, data: FormData): Promise<FormState> {
+  const result = await call(`/roles/${id}/`, 'DELETE', { reason: reason(data) }, 'Role deleted.');
+  if (result.ok) redirect('/admin/roles?deleted=1');
+  return { errors: result.errors, at: result.at };
+}
+
+// --------------------------------------------- confidential group control
+
+export async function setConfidentialGroupActive(id: number, value: boolean, _state: FormState, data: FormData): Promise<FormState> {
+  return send(
+    `/confidential-groups/${id}/`,
+    'PATCH',
+    { is_active: value, reason: reason(data) },
+    value ? 'The group is active again.' : 'The group is deactivated. Members keep access; no new documents can be added to it.',
+  );
+}
+
+export async function deleteConfidentialGroup(id: number, _state: FormState, data: FormData): Promise<FormState> {
+  const mode = text(data, 'mode') || null;
+  const result = await call(
+    `/confidential-groups/${id}/`,
+    'DELETE',
+    { mode, target_id: mode === 'move' ? optionalId(data, 'target_id') : null, reason: reason(data) },
+    'Group deleted.',
+  );
+  if (result.ok) redirect('/admin/confidential-groups?deleted=1');
+  return { errors: result.errors, at: result.at };
+}
+
+// ------------------------------------------------- documents (bulk, bin)
+
+type BulkResult = { succeeded: number; failed: number; results: { id: number; ok: boolean; error?: string }[] };
+
+const BULK_DONE: Record<string, string> = {
+  move: 'moved',
+  responsible: 'given a new responsible person',
+  access: 'given new access',
+  trash: 'moved to the recycle bin',
+  restore: 'restored',
+  purge: 'permanently deleted',
+};
+
+/** Apply one action to the selected documents; reports each failure. */
+export async function bulkDocuments(_state: FormState, data: FormData): Promise<FormState> {
+  const action = text(data, 'action');
+  const selected = ids(data, 'ids');
+  if (!selected.length) return { errors: { ids: 'Select at least one document.' }, at: Date.now() };
+  const access = text(data, 'confidential_group');
+  const result = await call(
+    '/documents/bulk/',
+    'POST',
+    {
+      action,
+      ids: selected,
+      department_id: optionalId(data, 'department_id'),
+      category_id: optionalId(data, 'category_id'),
+      user_id: optionalId(data, 'user_id'),
+      confidential_group: action === 'access' ? (access === 'general' ? 'general' : optionalId(data, 'confidential_group')) : null,
+      reason: reason(data),
+    },
+    'Done.',
+    true,
+  );
+  if (result.errors) return { errors: result.errors, at: result.at };
+  const body = result.body as BulkResult;
+  // Rows leave the list, so the page shows the result after a redirect
+  // back to the same list (see done-notice.tsx).
+  const back = new URLSearchParams(returnQuery(data));
+  back.set('done', `bulk-${BULK_DONE[action] ? action : 'move'}`);
+  back.set('n', String(body.succeeded));
+  back.set('of', String(selected.length));
+  const failed = body.results.filter((item) => !item.ok).map((item) => item.id);
+  if (failed.length) back.set('failed', failed.join(','));
+  return { ok: 'Done.', at: Date.now(), next: `/admin/documents?${back}` };
+}
+
+/** The list filters to return to after a bulk action (known keys only). */
+function returnQuery(data: FormData): string {
+  const from = new URLSearchParams(text(data, 'return_query'));
+  const kept = new URLSearchParams();
+  for (const key of ['q', 'department', 'category', 'access', 'status']) {
+    const value = from.get(key);
+    if (value) kept.set(key, value.slice(0, 200));
+  }
+  return kept.toString();
+}
+
+/** Single-document recycle bin actions from the document page. */
+export async function documentBinAction(id: number, action: 'trash' | 'restore' | 'purge', _state: FormState, data: FormData): Promise<FormState> {
+  const result = await call('/documents/bulk/', 'POST', { action, ids: [id], reason: reason(data) }, 'Done.', true);
+  if (result.errors) return { errors: result.errors, at: result.at };
+  const body = result.body as BulkResult;
+  const item = body.results[0];
+  if (!item?.ok) return { errors: { form: item?.error ?? 'This did not work.' }, at: Date.now() };
+  if (action === 'purge') redirect('/admin/documents?status=trash&purged=1');
+  // The page swaps the recycle-bin controls, so the page shows the result.
+  return { ok: 'Done.', at: Date.now(), next: `/admin/documents/${id}?done=${action === 'trash' ? 'document-trashed' : 'document-restored'}` };
 }

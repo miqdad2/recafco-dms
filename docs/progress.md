@@ -224,4 +224,21 @@ Remaining limitations
   matches, Edge decodes all sizes, no 4xx among 122 responses. Preview on
   light and dark: docs/screenshots/favicon/round-preview.png.
 
+## Unit 5 — Full application control for administrators (2026-11-11) — done, awaiting review
+
+- Changed policy (RECAFCO): administrators may delete, open every document
+  (general and confidential) and release confidential documents to general
+  by an explicit action. Recorded in docs/decisions.md.
+- Delete/merge for departments, categories, accounts (attribution kept),
+  roles and confidential groups; application roles with grantable
+  permissions and a protected System Administrator role; recycle bin,
+  restore and verified permanent deletion; bulk document actions;
+  append-only activity log with reason, outcome, filters and CSV export.
+- Admin document access through one Mayan role's ACLs; still no global
+  permissions. Employees and controllers unchanged (tested).
+- Found during browser verification and fixed: success messages lost for
+  bulk and recycle-bin actions, CSV export 502, write requests failing on a
+  closed keep-alive connection (writes now use a new connection; undici 7.30.2).
+- Tests, screenshots, gaps: docs/unit-5-report.md.
+
 Next unit: not started. Waiting for review.

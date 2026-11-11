@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { type AuditEntry, adminGet, requireAdmin } from '@/lib/admin';
-import { AdminShell, NotAuthorized } from './admin-shell';
+import { AdminShell, NotAuthorized, sectionAllowed } from './admin-shell';
 import { ActivityList } from './activity-list';
 
 export const dynamic = 'force-dynamic';
@@ -22,8 +22,9 @@ type Overview = {
 };
 
 export default async function AdminHome() {
-  const { session, allowed } = await requireAdmin();
-  if (!allowed) return <NotAuthorized session={session} />;
+  const access = await requireAdmin();
+  const { session, allowed } = access;
+  if (!allowed || !sectionAllowed(access, 'overview')) return <NotAuthorized session={session} />;
   const data = await adminGet<Overview>(session, '/overview/');
   const c = data.counts;
 
@@ -37,7 +38,7 @@ export default async function AdminHome() {
   ];
 
   return (
-    <AdminShell session={session} section="overview" title="Administration">
+    <AdminShell access={access} section="overview" title="Administration">
       <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {tiles.map((tile) => (
           <li key={tile.label}>
@@ -67,8 +68,9 @@ export default async function AdminHome() {
           Not done here
         </h2>
         <p className="mt-2 text-lg text-muted">
-          Server, backup, database and Mayan system settings are handled by IT outside this area. Nothing here can delete
-          documents, departments, categories or accounts: they are deactivated instead, and their history is kept.
+          Server, container, backup, database and Mayan system settings are handled by IT outside this area. Deletions here
+          always show what is affected first; documents go to the recycle bin before they can be deleted permanently, and the
+          activity log keeps every change.
         </p>
       </section>
     </AdminShell>

@@ -2,7 +2,16 @@ import { fieldClass } from '@/components/ui';
 import type { AdminDepartment, AdminUser } from '@/lib/admin';
 
 /** Name, roles and department fields shared by "Create user" and "Edit user". */
-export function UserFields({ departments, user }: { departments: AdminDepartment[]; user?: AdminUser }) {
+export function UserFields({
+  departments,
+  user,
+  canSetAdministrator,
+}: {
+  departments: AdminDepartment[];
+  user?: AdminUser;
+  /** Only System Administrators may grant or remove administrative authority. */
+  canSetAdministrator: boolean;
+}) {
   // Inactive departments are listed only when already assigned, so they can be removed.
   const visible = (assigned: number[]) => departments.filter((d) => d.is_active || assigned.includes(d.id));
   const memberOf = user?.department_ids ?? [];
@@ -10,6 +19,28 @@ export function UserFields({ departments, user }: { departments: AdminDepartment
 
   return (
     <>
+      {user && (
+        <div>
+          <label htmlFor="edit-username" className="mb-1.5 block text-base font-semibold">
+            Username
+          </label>
+          <input
+            id="edit-username"
+            name="username"
+            defaultValue={user.username}
+            required
+            maxLength={150}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            aria-describedby="edit-username-hint"
+            className={fieldClass}
+          />
+          <p id="edit-username-hint" className="mt-1 text-sm text-muted">
+            Saved in small letters and unique. The person signs in with the new username from now on.
+          </p>
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label htmlFor="first_name" className="mb-1.5 block text-base font-semibold">
@@ -39,15 +70,18 @@ export function UserFields({ departments, user }: { departments: AdminDepartment
             Employee <span className="block text-base text-muted">Can sign in, open general documents and upload.</span>
           </span>
         </label>
-        <label className="mt-2 flex min-h-12 items-start gap-3 text-lg">
-          <input type="checkbox" name="is_administrator" defaultChecked={user?.is_administrator} className="mt-1 size-6 shrink-0" />
-          <span>
-            RECAFCO administrator
-            <span className="block text-base text-muted">
-              Can use this administration area. Does not give access to confidential documents.
+        {canSetAdministrator && (
+          <label className="mt-2 flex min-h-12 items-start gap-3 text-lg">
+            <input type="hidden" name="can_set_administrator" value="1" />
+            <input type="checkbox" name="is_administrator" defaultChecked={user?.is_administrator} className="mt-1 size-6 shrink-0" />
+            <span>
+              System Administrator
+              <span className="block text-base text-muted">
+                Full control of the application, including every confidential document and roles.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+        )}
       </fieldset>
 
       <fieldset className="rounded-lg border border-line p-4">

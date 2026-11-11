@@ -60,6 +60,13 @@ Values ending in "(dev sample)" are placeholders for tests only.
   the document types `RECAFCO General` / `RECAFCO Confidential`
   (see `docs/permission-model.md`). `recafco_setup` refuses to run if the
   employee role has any global permission.
+- System Administrators (Unit 5) reach every RECAFCO document only through
+  the "RECAFCO System Administrators" Mayan role's ACLs, never global
+  permissions. Application roles grant admin-area permissions, never
+  document access. Only System Administrators manage roles.
+- Permanent deletion only from the recycle bin, and it must verify stored
+  files are gone. Deleting departments, categories or groups never deletes
+  documents implicitly. Activity log entries are append-only.
 - Confidentiality = document type. Per-document ACLs cannot remove inherited
   access, so never model confidentiality as an ACL on a general document.
 - Every portal call to Mayan uses the signed-in employee's own token. No

@@ -2,33 +2,41 @@ import Link from 'next/link';
 import { Icon } from '@/components/icons';
 import { notFound } from 'next/navigation';
 import { ActionForm } from '@/components/action-form';
-import { Notice, buttonPrimary, buttonSecondary, formatDate } from '@/components/ui';
-import { type AdminDepartment, type AdminUser, adminGet, adminGetOrNull, requireAdmin } from '@/lib/admin';
+import { DialogForm } from '@/components/dialog-form';
+import { Notice, buttonPrimary, buttonSecondary, fieldClass, formatDate } from '@/components/ui';
+import { type AdminDepartment, type AdminRole, type AdminUser, adminGet, adminGetOrNull, requireAdmin } from '@/lib/admin';
+import type { UserRef } from '@/lib/mayan';
 import { parseId } from '@/lib/route-helpers';
 import { PasswordInput } from '@/components/password-input';
-import { resetUserPassword, setUserActive, updateUser } from '../../actions';
-import { AdminShell, NotAuthorized } from '../../admin-shell';
+import { deleteUser, resetUserPassword, setUserActive, setUserRoles, updateUser } from '../../actions';
+import { AdminShell, NotAuthorized, sectionAllowed } from '../../admin-shell';
 import { USER_LABELS, UserFields } from '../user-fields';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'User – Administration' };
 
 export default async function AdminUserPage({ params, searchParams }: PageProps<'/admin/users/[id]'>) {
-  const { session, allowed } = await requireAdmin();
-  if (!allowed) return <NotAuthorized session={session} />;
+  const access = await requireAdmin();
+  const { session, allowed } = access;
+  if (!allowed || !sectionAllowed(access, 'users')) return <NotAuthorized session={session} />;
   const id = parseId((await params).id);
   if (id === null) notFound();
-  const [user, departments] = await Promise.all([
+  const [user, departments, roles, choices] = await Promise.all([
     adminGetOrNull<AdminUser>(session, `/users/${id}/`),
     adminGet<{ results: AdminDepartment[] }>(session, '/departments/'),
+    access.isSystemAdmin ? adminGet<{ results: AdminRole[] }>(session, '/roles/') : Promise.resolve({ results: [] as AdminRole[] }),
+    adminGet<{ results: (UserRef & { is_active: boolean })[] }>(session, '/users/choices/'),
   ]);
   if (!user) notFound();
   const created = (await searchParams).created === '1';
   const isSelf = user.username === session.username;
+  // Only System Administrators may change a System Administrator's account.
+  const locked = user.is_administrator && !access.isSystemAdmin;
+  const customRoles = roles.results.filter((role) => !role.is_protected);
 
   return (
     <AdminShell
-      session={session}
+      access={access}
       section="users"
       title={user.full_name}
       crumbs={[{ href: '/admin/users', label: 'Users and roles' }, { label: user.full_name }]}
@@ -45,6 +53,11 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
       {user.must_change_password && (
         <Notice tone="info" role="status">
           This person has a temporary password and must choose their own at their next sign-in.
+        </Notice>
+      )}
+      {locked && (
+        <Notice tone="info" role="status">
+          This is a System Administrator. Only System Administrators can change, reset or delete this account.
         </Notice>
       )}
       {user.locked_out && (
@@ -65,9 +78,69 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
           submitClassName={buttonPrimary}
           labels={USER_LABELS}
         >
-          <UserFields departments={departments.results} user={user} />
+          <UserFields departments={departments.results} user={user} canSetAdministrator={access.isSystemAdmin} />
         </ActionForm>
       </section>
+
+      {access.isSystemAdmin && (
+        <section aria-labelledby="roles" className="rounded-lg border border-wait/40 bg-surface p-4 sm:p-6">
+          <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-wait">
+            <Icon name="lock" className="size-4" />
+            Access change
+          </p>
+          <h2 id="roles" className="text-lg font-bold">
+            Roles
+          </h2>
+          <p className="mt-1 text-base text-muted">
+            Roles open parts of this administration area. Only System Administrators can assign them.
+          </p>
+          <ActionForm
+            action={setUserRoles.bind(null, user.id)}
+            className="mt-3 flex flex-col gap-3"
+            submit="Save roles"
+            submitClassName={buttonSecondary}
+          >
+            <label className="flex min-h-11 items-start gap-3 text-base">
+              <input
+                type="checkbox"
+                name="system_administrator"
+                defaultChecked={user.is_administrator}
+                disabled={isSelf}
+                className="mt-1 size-5 shrink-0"
+              />
+              <span>
+                <strong>System Administrator</strong> (protected role)
+                <span className="block text-sm text-muted">
+                  Every permission, including every confidential document and roles.
+                  {isSelf && ' You cannot remove your own System Administrator role.'}
+                </span>
+              </span>
+            </label>
+            {isSelf && user.is_administrator && <input type="hidden" name="system_administrator" value="on" />}
+            {customRoles.length === 0 ? (
+              <p className="text-base text-muted">
+                No other roles yet. <Link href="/admin/roles" className="font-semibold text-brand underline underline-offset-4">Create a role</Link>.
+              </p>
+            ) : (
+              customRoles.map((role) => (
+                <label key={role.id} className="flex min-h-11 items-start gap-3 text-base">
+                  <input
+                    type="checkbox"
+                    name="role_ids"
+                    value={role.id}
+                    defaultChecked={user.roles.some((item) => item.id === role.id)}
+                    className="mt-1 size-5 shrink-0"
+                  />
+                  <span>
+                    <strong>{role.name}</strong>
+                    {role.description && <span className="block text-sm text-muted">{role.description}</span>}
+                  </span>
+                </label>
+              ))
+            )}
+          </ActionForm>
+        </section>
+      )}
 
       <section aria-labelledby="confidential" className="rounded-lg border border-line bg-surface p-4 sm:p-6">
         <h2 id="confidential" className="text-lg font-bold">
@@ -160,6 +233,58 @@ export default async function AdminUserPage({ params, searchParams }: PageProps<
           )}
         </section>
       </div>
+
+      {!isSelf && !locked && (
+        <section aria-labelledby="delete-account" className="rounded-lg border border-brand/40 bg-surface p-4 sm:p-6">
+          <h2 id="delete-account" className="text-lg font-bold">
+            Delete account
+          </h2>
+          <p className="mt-1 text-base text-muted">
+            Removes the account. Documents stay; their uploader and the activity log keep this person’s name.
+          </p>
+          <div className="mt-3">
+            <DialogForm
+              action={deleteUser.bind(null, user.id)}
+              formId="delete-user"
+              trigger="Delete account…"
+              title={`Delete the account of ${user.full_name}`}
+              confirmLabel="Delete account"
+              danger
+              irreversible
+              summary={
+                <ul className="list-disc pl-5">
+                  <li>
+                    Uploaded documents: <strong>{user.usage?.uploaded_documents ?? 0}</strong> (kept, uploader name kept)
+                  </li>
+                  <li>
+                    Documents this person is responsible for: <strong>{user.usage?.responsible_for ?? 0}</strong>
+                  </li>
+                  <li>
+                    Activity log entries by this person: <strong>{user.usage?.activity_entries ?? 0}</strong> (kept)
+                  </li>
+                  <li>They are signed out everywhere at once.</li>
+                </ul>
+              }
+            >
+              <div>
+                <label htmlFor="transfer_to" className="mb-1.5 block text-base font-semibold">
+                  Transfer responsibility to <span className="font-normal text-muted">(optional)</span>
+                </label>
+                <select id="transfer_to" name="transfer_to" defaultValue="" className={fieldClass}>
+                  <option value="">Nobody: fall back to each document’s original uploader</option>
+                  {choices.results
+                    .filter((item) => item.id !== user.id && item.is_active)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.full_name} ({item.username})
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </DialogForm>
+          </div>
+        </section>
+      )}
     </AdminShell>
   );
 }

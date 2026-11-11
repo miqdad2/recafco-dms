@@ -16,12 +16,12 @@ from ...literals import (
     GROUP_CONTROLLERS_NAME, GROUP_EMPLOYEES_NAME,
     METADATA_TYPE_CATEGORY_LABEL, METADATA_TYPE_CATEGORY_NAME,
     METADATA_TYPE_DEPARTMENT_LABEL, METADATA_TYPE_DEPARTMENT_NAME,
-    ROLE_CONTROLLERS_LABEL, ROLE_EMPLOYEES_LABEL
+    ROLE_ADMINISTRATORS_LABEL, ROLE_CONTROLLERS_LABEL, ROLE_EMPLOYEES_LABEL
 )
 from ...models import (
     Category, ConfidentialAccessGroup, Department, DocumentClassification
 )
-from ...permission_model import ACL_MAP, READ_PERMISSIONS
+from ...permission_model import ADMIN_DOCUMENT_PERMISSIONS, ACL_MAP, READ_PERMISSIONS
 from ...services import InputRejected, clean_name, sync_metadata_lookups
 
 SAMPLE_SUFFIX = '(dev sample)'
@@ -81,7 +81,7 @@ class Command(BaseCommand):
         )
 
     def recafco_roles(self):
-        labels = {ROLE_EMPLOYEES_LABEL, ROLE_CONTROLLERS_LABEL}
+        labels = {ROLE_EMPLOYEES_LABEL, ROLE_CONTROLLERS_LABEL, ROLE_ADMINISTRATORS_LABEL}
         labels.update(
             ConfidentialAccessGroup.objects.values_list('role__label', flat=True)
         )
@@ -99,16 +99,20 @@ class Command(BaseCommand):
                         role.label, global_permissions
                     )
                 )
-        # The administrators group must not carry Mayan permissions.
+        # The administrators group may carry only the RECAFCO System
+        # Administrators role (document ACLs, no global permissions).
         group = Group.objects.filter(name=GROUP_ADMINISTRATORS_NAME).first()
-        if group is not None and group.roles.exists():
-            raise CommandError(
-                'Group "{}" is attached to Mayan roles {}. Remove them; the '
-                'RECAFCO administration area needs no Mayan permissions.'.format(
-                    GROUP_ADMINISTRATORS_NAME,
-                    sorted(group.roles.values_list('label', flat=True))
-                )
+        if group is not None:
+            other = sorted(
+                group.roles.exclude(label=ROLE_ADMINISTRATORS_LABEL).values_list('label', flat=True)
             )
+            if other:
+                raise CommandError(
+                    'Group "{}" is attached to other Mayan roles {}. Remove them; '
+                    'administrators get document access only through "{}".'.format(
+                        GROUP_ADMINISTRATORS_NAME, other, ROLE_ADMINISTRATORS_LABEL
+                    )
+                )
 
     def seed(self, model, metadata_type, names):
         # First run after Unit 1: import the existing lookup values so that
@@ -164,14 +168,13 @@ class Command(BaseCommand):
         roles = {}
         for role_label, group_name in (
             (ROLE_EMPLOYEES_LABEL, GROUP_EMPLOYEES_NAME),
-            (ROLE_CONTROLLERS_LABEL, GROUP_CONTROLLERS_NAME)
+            (ROLE_CONTROLLERS_LABEL, GROUP_CONTROLLERS_NAME),
+            (ROLE_ADMINISTRATORS_LABEL, GROUP_ADMINISTRATORS_NAME)
         ):
             role, created = Role.objects.get_or_create(label=role_label)
             group, created = Group.objects.get_or_create(name=group_name)
             role.groups.add(group)
             roles[role_label] = role
-
-        Group.objects.get_or_create(name=GROUP_ADMINISTRATORS_NAME)
 
         # The Unit 1 confidential type and its readers are the first
         # confidential access group.
@@ -202,6 +205,13 @@ class Command(BaseCommand):
                     access_group.document_type: READ_PERMISSIONS
                 }
                 access_group.role.groups.add(access_group.group)
+
+        # System Administrators: full document permissions on every RECAFCO
+        # document type (general and every confidential group).
+        acl_map[roles[ROLE_ADMINISTRATORS_LABEL]] = {
+            document_type: ADMIN_DOCUMENT_PERMISSIONS
+            for document_type in document_types.values()
+        }
 
         for document_type in document_types.values():
             for metadata_type in metadata_type_objects.values():

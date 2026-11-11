@@ -20,6 +20,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .access import get_controller_department_ids, is_portal_admin
+from .app_permissions import can_use_admin_area, get_app_permissions, has_app_permission
 from .literals import (
     DEPARTMENT_DOCUMENTS_MAXIMUM_PAGE_SIZE, DEPARTMENT_DOCUMENTS_PAGE_SIZE,
     MY_UPLOADS_DEFAULT_LIMIT, MY_UPLOADS_MAXIMUM_LIMIT,
@@ -140,7 +141,7 @@ def serialize_document_detail(document, user):
     data['editable_department_ids'] = sorted(editable)
     # Reclassifying needs administrator authority AND current access; the
     # caller already established access by loading the document.
-    data['can_reclassify'] = is_portal_admin(user=user)
+    data['can_reclassify'] = has_app_permission(user=user, permission='documents.manage')
     return data
 
 
@@ -160,7 +161,11 @@ class APIPortalMeView(PortalAPIView):
                     )
                 ),
                 'full_name': user.get_full_name().strip() or user.username,
-                'is_admin': is_portal_admin(user=user),
+                # is_admin: may open the administration area (any application
+                # permission). Each admin endpoint checks its own permission.
+                'is_admin': can_use_admin_area(user=user),
+                'is_system_admin': is_portal_admin(user=user),
+                'admin_permissions': sorted(get_app_permissions(user=user)),
                 'username': user.username
             }
         )
@@ -174,7 +179,7 @@ class APIPortalOptionsView(PortalAPIView):
         # the group explicitly. Others get no group list at all.
         options['confidential_groups'] = [
             {'id': group.pk, 'name': group.name}
-            for group in ConfidentialAccessGroup.objects.all()
+            for group in ConfidentialAccessGroup.objects.filter(is_active=True)
         ] if is_portal_admin(user=request.user) else []
         return Response(options)
 

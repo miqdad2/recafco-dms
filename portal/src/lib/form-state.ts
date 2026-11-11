@@ -4,6 +4,12 @@ export type FormState = {
   errors?: Record<string, string>;
   /** Changes on every submit so the client can react to a new result. */
   at?: number;
+  /**
+   * Page to show next, with a result code (see admin/done-notice.tsx). Used
+   * when the action removes the component that would show the message; the
+   * client component navigates there after closing its dialog.
+   */
+  next?: string;
 };
 
 /** Turns an extension error body ({field: message | [message]}) into form errors. */

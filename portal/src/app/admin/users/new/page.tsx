@@ -3,20 +3,21 @@ import { PasswordInput } from '@/components/password-input';
 import { buttonPrimary, fieldClass } from '@/components/ui';
 import { type AdminDepartment, adminGet, requireAdmin } from '@/lib/admin';
 import { createUser } from '../../actions';
-import { AdminShell, NotAuthorized } from '../../admin-shell';
+import { AdminShell, NotAuthorized, sectionAllowed } from '../../admin-shell';
 import { USER_LABELS, UserFields } from '../user-fields';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Create user – Administration' };
 
 export default async function NewUserPage() {
-  const { session, allowed } = await requireAdmin();
-  if (!allowed) return <NotAuthorized session={session} />;
+  const access = await requireAdmin();
+  const { session, allowed } = access;
+  if (!allowed || !sectionAllowed(access, 'users')) return <NotAuthorized session={session} />;
   const departments = await adminGet<{ results: AdminDepartment[] }>(session, '/departments/');
 
   return (
     <AdminShell
-      session={session}
+      access={access}
       section="users"
       title="Create user"
       crumbs={[{ href: '/admin/users', label: 'Users and roles' }, { label: 'Create user' }]}
@@ -61,7 +62,7 @@ export default async function NewUserPage() {
             </p>
           </div>
         </div>
-        <UserFields departments={departments.results} />
+        <UserFields departments={departments.results} canSetAdministrator={access.isSystemAdmin} />
       </ActionForm>
     </AdminShell>
   );

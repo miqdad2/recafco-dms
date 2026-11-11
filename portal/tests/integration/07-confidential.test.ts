@@ -85,10 +85,9 @@ describe('confidential upload', () => {
     });
     expect(response.status).toBe(201);
     const receipt = await response.json();
-    // A receipt only: no file, no pages, no content for a non-member.
-    expect(receipt).toMatchObject({ accessible: false, label, access: 'confidential', confidential_group: { id: groupG.id } });
-    expect(receipt).not.toHaveProperty('file');
-    expect(receipt).not.toHaveProperty('version');
+    // Unit 5 changed policy: System Administrators can open every confidential document.
+    // The uploading System Administrator gets the full document, not only a receipt.
+    expect(receipt).toMatchObject({ accessible: true, label, access: 'confidential', confidential_group: { id: groupG.id } });
     documentId = receipt.id;
     // Created directly in the group's own document type (never "RECAFCO General").
     const found = dev<Found>('find-label', label);
@@ -102,27 +101,32 @@ describe('confidential upload', () => {
     expect((await again.json()).id).toBe(documentId);
   });
 
-  it('the uploading administrator cannot open, preview or download it; the member can', async () => {
+  it('a non-member employee cannot open, preview or download it; the member and System Administrators can', async () => {
     const forMember = await waitReady(tA, documentId);
     const fileId = forMember.file.id;
     const pageId = forMember.version.page_ids[0];
     const versionId = forMember.version.id;
-    for (const token of [tD, tB]) {
+    // Unit 5 changed policy: System Administrators can open every confidential document.
+    expect((await api(tD, `/recafco/documents/${documentId}/`)).status).toBe(200);
+    expect((await binary(tD, `/documents/${documentId}/files/${fileId}/download/`)).status).toBe(200);
+    expect((await portalGet(`/documents/${documentId}`, d)).status).toBe(200);
+    for (const token of [tB]) {
       expect(DENIED).toContain((await api(token, `/recafco/documents/${documentId}/`)).status);
       expect(DENIED).toContain((await binary(token, `/documents/${documentId}/files/${fileId}/download/`)).status);
       expect(DENIED).toContain((await binary(token, `/documents/${documentId}/versions/${versionId}/pages/${pageId}/image/`)).status);
     }
-    expect((await portalGet(`/documents/${documentId}`, d)).status).toBe(404);
-    expect((await portalGet(`/api/documents/${documentId}/files/${fileId}/download`, d)).status).toBe(404);
+    expect((await portalGet(`/documents/${documentId}`, b)).status).toBe(404);
+    expect((await portalGet(`/api/documents/${documentId}/files/${fileId}/download`, b)).status).toBe(404);
     expect((await portalGet(`/documents/${documentId}`, a)).status).toBe(200);
     expect((await binary(tA, `/documents/${documentId}/files/${fileId}/download/`)).status).toBe(200);
   });
 
-  it('becomes visible to the administrator only through membership', async () => {
+  it('is visible to System Administrators with or without membership (Unit 5 policy)', async () => {
+    expect((await api(tD, `/recafco/documents/${documentId}/`)).status).toBe(200);
     expect((await member(groupG, userD, true)).status).toBe(200);
     expect((await api(tD, `/recafco/documents/${documentId}/`)).status).toBe(200);
     expect((await member(groupG, userD, false)).status).toBe(200);
-    expect(DENIED).toContain((await api(tD, `/recafco/documents/${documentId}/`)).status);
+    expect((await api(tD, `/recafco/documents/${documentId}/`)).status).toBe(200);
   });
 });
 
@@ -164,10 +168,14 @@ describe('reclassifying an existing document', () => {
     expect((await api(tB, `/recafco/documents/${documentId}/`)).body.access).toBe('general');
   });
 
-  it('needs an explicit group; there is no release to general', async () => {
-    for (const body of [{}, { confidential_group: null }, { confidential_group: 'general' }]) {
+  it('needs an explicit choice: a group ID, or null for general (Unit 5 allows release to general)', async () => {
+    for (const body of [{}, { confidential_group: 'general' }]) {
       expect((await json(tD, `/recafco/admin/documents/${documentId}/reclassify/`, 'POST', body)).status).toBe(400);
     }
+    // Already general: an explicit null is accepted and changes nothing.
+    const same = await json(tD, `/recafco/admin/documents/${documentId}/reclassify/`, 'POST', { confidential_group: null });
+    expect(same.status).toBe(200);
+    expect(same.body.changed).toBe(false);
   });
 
   it('takes effect at once for search, counts, favorites, previews, downloads and existing sessions', async () => {
@@ -177,7 +185,7 @@ describe('reclassifying an existing document', () => {
 
     const result = await json(tD, `/recafco/admin/documents/${documentId}/reclassify/`, 'POST', { confidential_group: groupG.id });
     expect(result.status).toBe(200);
-    expect(result.body).toMatchObject({ changed: true, accessible: false, confidential_group: { id: groupG.id } });
+    expect(result.body).toMatchObject({ changed: true, accessible: true, confidential_group: { id: groupG.id } });
     expect(dev<Found>('find-label', label).documents[0].document_type).toBe(groupG.document_type);
 
     // The original uploader (B, not a member) lost access immediately.
@@ -192,37 +200,38 @@ describe('reclassifying an existing document', () => {
     expect(await (await portalGet('/favorites', b)).text()).not.toContain(`/documents/${documentId}`);
     expect(await (await portalGet('/my-uploads', b)).text()).not.toContain(`/documents/${documentId}`);
 
-    // The administrator who did it is not a member: no access either.
-    expect(DENIED).toContain((await api(tD, `/recafco/documents/${documentId}/`)).status);
+    // Unit 5 changed policy: System Administrators can open every confidential document.
+    expect((await api(tD, `/recafco/documents/${documentId}/`)).status).toBe(200);
     // The member can open it.
     expect((await api(tA, `/recafco/documents/${documentId}/`)).body).toMatchObject({
       access: 'confidential', confidential_group: { id: groupG.id }, uploaded_by: { username: 'dev_employee_b' },
     });
   });
 
-  it('requires current access: an administrator who cannot see it cannot reclassify it', async () => {
-    expect((await json(tD, `/recafco/admin/documents/${documentId}/reclassify/`, 'POST', { confidential_group: groupH.id })).status).toBe(404);
-  });
-
-  it('a member administrator can move it to another group without it ever becoming general', async () => {
-    expect((await member(groupG, userD, true)).status).toBe(200);
-    try {
-      const result = await json(tD, `/recafco/admin/documents/${documentId}/reclassify/`, 'POST', { confidential_group: groupH.id });
-      expect(result.status).toBe(200);
-      expect(dev<Found>('find-label', label).documents[0].document_type).toBe(groupH.document_type);
-      // Now nobody in G sees it (H has no members).
-      for (const token of [tA, tB, tD]) {
-        expect(DENIED).toContain((await api(token, `/recafco/documents/${documentId}/`)).status);
-      }
-    } finally {
-      await member(groupG, userD, false);
+  it('a System Administrator moves it to another group without membership, never via general', async () => {
+    const result = await json(tD, `/recafco/admin/documents/${documentId}/reclassify/`, 'POST', { confidential_group: groupH.id });
+    expect(result.status).toBe(200);
+    expect(dev<Found>('find-label', label).documents[0].document_type).toBe(groupH.document_type);
+    // H has no members: employees of G lose it; System Administrators keep it.
+    for (const token of [tA, tB]) {
+      expect(DENIED).toContain((await api(token, `/recafco/documents/${documentId}/`)).status);
     }
+    expect((await api(tD, `/recafco/documents/${documentId}/`)).status).toBe(200);
   });
 
   it('is recorded in the document history and the activity log', async () => {
     const log = (await api(tD, '/recafco/admin/audit/')).body.results as { action: string; target_id: number; details: Record<string, unknown> }[];
-    const entries = log.filter((entry) => entry.action === 'document.reclassified' && entry.target_id === documentId);
+    const entries = log.filter((entry) => entry.action === 'document.access_changed' && entry.target_id === documentId);
     expect(entries.length).toBe(2);
+  });
+
+  it('can be released back to general only by an explicit administrator action (Unit 5)', async () => {
+    const released = await json(tD, `/recafco/admin/documents/${documentId}/reclassify/`, 'POST', { confidential_group: null, reason: 'released by test' });
+    expect(released.status).toBe(200);
+    expect(released.body).toMatchObject({ changed: true, confidential_group: null });
+    expect((await api(tB, `/recafco/documents/${documentId}/`)).body.access).toBe('general');
+    // Employees still cannot do it.
+    expect((await json(tB, `/recafco/admin/documents/${documentId}/reclassify/`, 'POST', { confidential_group: groupG.id })).status).toBe(403);
   });
 });
 

@@ -158,9 +158,12 @@ describe('general documents are visible across departments', () => {
 });
 
 describe('confidential documents stay restricted', () => {
-  it('are excluded from employee and administrator counts, lists and search, but not the controller’s', async () => {
+  it('are excluded from employee counts, lists and search, but not the controller’s or a System Administrator’s', async () => {
+    // Unit 5 changed policy: System Administrators can open every confidential document.
     const forC = await counts(tC);
-    for (const token of [tA, tB, tD]) {
+    expect((await counts(tD)).get(deptA.id)).toBe(3);
+    expect((await api(tD, `/recafco/documents/${ids.conf}/`)).status).toBe(200);
+    for (const token of [tA, tB]) {
       expect((await counts(token)).get(deptA.id)).toBe(2);
       const list = await deptDocs(token, deptA.id);
       expect(list.results.map((doc) => doc.id)).not.toContain(ids.conf);
@@ -187,10 +190,12 @@ describe('confidential documents stay restricted', () => {
       'confidential-sample', '--label', `GCONF-${RUN}`, '--text', 'group secret', '--department', deptB.name, '--group-id', String(groupId),
     ).document_id;
 
-    // Nobody is a member: not the employee, not the original controllers, not the administrator.
-    for (const token of [tB, tC, tD]) {
+    // Nobody is a member: neither the employee nor the original controllers can open it.
+    for (const token of [tB, tC]) {
       expect(DENIED, 'before membership').toContain((await api(token, `/recafco/documents/${docId}/`)).status);
     }
+    // Unit 5 policy: System Administrators open every confidential document without membership.
+    expect((await api(tD, `/recafco/documents/${docId}/`)).status).toBe(200);
     const before = (await counts(tB)).get(deptB.id);
 
     const add = await json(tD, `/recafco/admin/confidential-groups/${groupId}/members/`, 'POST', { user_id: userIdB, is_member: true });
@@ -396,9 +401,9 @@ describe('RECAFCO administration', () => {
     expect((await json(tD, `/recafco/admin/documents/${ids.a1}/owner/`, 'POST', { user_id: userIdB })).status).toBe(404);
   });
 
-  it('administrators still cannot open confidential documents of groups they are not in', async () => {
-    expect((await api(tD, `/recafco/admin/documents/${ids.conf}/`)).status).toBe(404);
-    expect((await api(tD, `/recafco/admin/documents/?q=DCONF-${RUN}`)).body.count).toBe(0);
+  it('System Administrators can open confidential documents of groups they are not in (Unit 5 policy)', async () => {
+    expect((await api(tD, `/recafco/admin/documents/${ids.conf}/`)).status).toBe(200);
+    expect((await api(tD, `/recafco/admin/documents/?q=DCONF-${RUN}`)).body.count).toBe(1);
   });
 
   it('works through the portal’s own admin form', async () => {

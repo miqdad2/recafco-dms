@@ -2,6 +2,13 @@ import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { Agent, setGlobalDispatcher } from 'undici';
+
+// Same reason as src/lib/mayan.ts: Gunicorn closes keep-alive connections
+// (idle 2 s, worker recycling every ~500 requests), and a request sent on a
+// closing connection fails with "other side closed". Tests send many writes,
+// so every request uses a new connection.
+setGlobalDispatcher(new Agent({ pipelining: 0 }));
 
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const devEnvPath = path.join(repoRoot, 'deploy', 'dev', '.env');

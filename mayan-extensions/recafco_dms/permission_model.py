@@ -11,8 +11,10 @@ from mayan.apps.document_downloads.permissions import (
     permission_document_file_download
 )
 from mayan.apps.documents.permissions import (
-    permission_document_file_view, permission_document_version_view,
-    permission_document_view
+    permission_document_file_view, permission_document_properties_edit,
+    permission_document_trash, permission_document_version_view,
+    permission_document_view, permission_trashed_document_delete,
+    permission_trashed_document_restore
 )
 
 from .literals import (
@@ -24,6 +26,16 @@ from .permissions import permission_portal_document_upload
 READ_PERMISSIONS = (
     permission_document_file_download, permission_document_file_view,
     permission_document_version_view, permission_document_view
+)
+
+# Unit 5: System Administrators (role ROLE_ADMINISTRATORS_LABEL, group
+# "RECAFCO Administrators") get these on EVERY RECAFCO document type,
+# general and every confidential group, so they can open, search, download,
+# edit, recycle, restore and permanently delete any document. ACLs only:
+# still no global Mayan permission. Employees are unaffected.
+ADMIN_DOCUMENT_PERMISSIONS = READ_PERMISSIONS + (
+    permission_document_properties_edit, permission_document_trash,
+    permission_trashed_document_delete, permission_trashed_document_restore
 )
 
 # {role label: {document type label: permissions}}

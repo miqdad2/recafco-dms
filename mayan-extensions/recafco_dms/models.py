@@ -15,12 +15,16 @@ class PortalUpload(models.Model):
         on_delete=models.CASCADE, related_name='recafco_portal_upload',
         to='documents.Document', verbose_name=_(message='Document')
     )
-    # PROTECT: ownership is an audit record. Users who leave are disabled,
-    # not deleted.
+    # The uploader is an audit record. If an administrator deletes the
+    # account (Unit 5), the link becomes empty and the name snapshot below
+    # keeps the attribution.
     uploader = models.ForeignKey(
-        on_delete=models.PROTECT, related_name='recafco_portal_uploads',
+        null=True, on_delete=models.SET_NULL,
+        related_name='recafco_portal_uploads',
         to=settings.AUTH_USER_MODEL, verbose_name=_(message='Uploader')
     )
+    uploader_username = models.CharField(blank=True, max_length=150)
+    uploader_full_name = models.CharField(blank=True, max_length=300)
     datetime_created = models.DateTimeField(
         auto_now_add=True, db_index=True,
         verbose_name=_(message='Date and time created')
@@ -47,6 +51,9 @@ class PortalUpload(models.Model):
             ).first()
             if stored and stored != (self.uploader_id, self.document_id):
                 raise ValueError('The original uploader of a document cannot change.')
+        if self.uploader_id and not self.uploader_username:
+            self.uploader_username = self.uploader.username
+            self.uploader_full_name = self.uploader.get_full_name().strip()
         super().save(*args, **kwargs)
 
 
@@ -60,11 +67,11 @@ class DocumentResponsibility(models.Model):
         to='documents.Document'
     )
     person = models.ForeignKey(
-        on_delete=models.PROTECT, related_name='recafco_responsible_for',
+        on_delete=models.CASCADE, related_name='recafco_responsible_for',
         to=settings.AUTH_USER_MODEL
     )
     assigned_by = models.ForeignKey(
-        null=True, on_delete=models.PROTECT,
+        null=True, on_delete=models.SET_NULL,
         related_name='recafco_responsibilities_assigned',
         to=settings.AUTH_USER_MODEL
     )
@@ -86,7 +93,7 @@ class UploadOperation(models.Model):
     STATE_FAILED = 'failed'
 
     user = models.ForeignKey(
-        on_delete=models.PROTECT, related_name='recafco_upload_operations',
+        on_delete=models.CASCADE, related_name='recafco_upload_operations',
         to=settings.AUTH_USER_MODEL
     )
     operation_id = models.CharField(max_length=64)
@@ -175,12 +182,16 @@ class DocumentClassification(models.Model):
         on_delete=models.CASCADE, related_name='recafco_classification',
         to='documents.Document'
     )
+    # PROTECT: deleting a department or category never removes documents.
+    # The value is empty only for documents in the recycle bin whose
+    # department or category an administrator deleted (Unit 5); the Mayan
+    # metadata value keeps the old name.
     department = models.ForeignKey(
-        on_delete=models.PROTECT, related_name='classifications',
+        null=True, on_delete=models.PROTECT, related_name='classifications',
         to=Department
     )
     category = models.ForeignKey(
-        on_delete=models.PROTECT, related_name='classifications',
+        null=True, on_delete=models.PROTECT, related_name='classifications',
         to=Category
     )
     datetime_modified = models.DateTimeField(auto_now=True)
@@ -245,6 +256,8 @@ class ConfidentialAccessGroup(models.Model):
         on_delete=models.PROTECT, related_name='recafco_confidential_group',
         to='auth.Group'
     )
+    # Deactivated groups take no new documents; existing access is unchanged.
+    is_active = models.BooleanField(default=True)
     datetime_created = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -255,20 +268,43 @@ class ConfidentialAccessGroup(models.Model):
 
 
 class AuditEntry(models.Model):
-    """Who changed what in the RECAFCO administration area. Append-only."""
+    """
+    Who changed what in the RECAFCO administration area. Append-only: an
+    entry is never edited or deleted through the application (save() of an
+    existing entry and delete() raise). The actor's name is copied in, so
+    the history stays readable after the account or the target is deleted.
+    """
+    OUTCOME_SUCCESS = 'success'
+    OUTCOME_FAILED = 'failed'
+
     actor = models.ForeignKey(
-        on_delete=models.PROTECT, related_name='recafco_audit_entries',
-        to=settings.AUTH_USER_MODEL
+        null=True, on_delete=models.SET_NULL,
+        related_name='recafco_audit_entries', to=settings.AUTH_USER_MODEL
     )
-    action = models.CharField(max_length=64)
+    actor_username = models.CharField(blank=True, max_length=150)
+    actor_full_name = models.CharField(blank=True, max_length=300)
+    action = models.CharField(db_index=True, max_length=64)
     target_type = models.CharField(db_index=True, max_length=32)
     target_id = models.PositiveIntegerField(db_index=True)
     target_label = models.CharField(blank=True, max_length=255)
     details = models.JSONField(default=dict)
+    reason = models.TextField(blank=True)
+    outcome = models.CharField(db_index=True, default=OUTCOME_SUCCESS, max_length=16)
     datetime_created = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         ordering = ('-datetime_created', '-id')
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and AuditEntry.objects.filter(pk=self.pk).exists():
+            raise ValueError('Activity log entries cannot be changed.')
+        if self.actor_id and not self.actor_username:
+            self.actor_username = self.actor.username
+            self.actor_full_name = self.actor.get_full_name().strip()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError('Activity log entries cannot be deleted.')
 
 
 class PasswordState(models.Model):
@@ -290,7 +326,7 @@ class PasswordState(models.Model):
     # Why a change is (or was last) required: "created" or "admin_reset".
     reason = models.CharField(blank=True, max_length=16)
     set_by = models.ForeignKey(
-        null=True, on_delete=models.PROTECT,
+        null=True, on_delete=models.SET_NULL,
         related_name='recafco_password_states_set', to=settings.AUTH_USER_MODEL
     )
     datetime_temporary_set = models.DateTimeField(null=True)
@@ -310,3 +346,29 @@ class LoginRateWindow(models.Model):
 
     class Meta:
         unique_together = ('key', 'window_start')
+
+
+class AppRole(models.Model):
+    """
+    An application role: a named set of RECAFCO application permissions
+    (see app_permissions.py). The built-in "System Administrator" role
+    (system_key = "system_administrator") is protected: it has every
+    permission, cannot be edited or deleted, and its members are the
+    "RECAFCO Administrators" group (which also gives document access through
+    Mayan ACLs). Other roles are created by System Administrators and are
+    assigned to users here.
+    """
+    name = models.CharField(max_length=60, unique=True)
+    description = models.CharField(blank=True, max_length=255)
+    permissions = models.JSONField(default=list)
+    system_key = models.CharField(blank=True, max_length=32, null=True, unique=True)
+    users = models.ManyToManyField(
+        blank=True, related_name='recafco_app_roles', to=settings.AUTH_USER_MODEL
+    )
+    datetime_created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('name',)
+
+    def __str__(self):
+        return self.name

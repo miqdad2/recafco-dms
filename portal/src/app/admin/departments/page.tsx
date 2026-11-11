@@ -1,8 +1,10 @@
 import { ActionForm } from '@/components/action-form';
+import { DialogForm } from '@/components/dialog-form';
 import { Notice, SampleBadge, buttonPrimary, buttonSmall, fieldClass, DepartmentIcon } from '@/components/ui';
 import { type AdminDepartment, adminGet, requireAdmin } from '@/lib/admin';
-import { createDepartment, moveDepartment, setDepartmentActive, updateDepartment } from '../actions';
-import { AdminShell, NotAuthorized } from '../admin-shell';
+import { createDepartment, deleteDepartment, moveDepartment, setDepartmentActive, updateDepartment } from '../actions';
+import { AdminShell, NotAuthorized, sectionAllowed } from '../admin-shell';
+import { DoneNotice } from '../done-notice';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Departments – Administration' };
@@ -36,14 +38,16 @@ function IconSelect({ id, value, icons }: { id: string; value: string; icons: st
   );
 }
 
-export default async function AdminDepartmentsPage() {
-  const { session, allowed } = await requireAdmin();
-  if (!allowed) return <NotAuthorized session={session} />;
+export default async function AdminDepartmentsPage({ searchParams }: PageProps<'/admin/departments'>) {
+  const access = await requireAdmin();
+  const { session, allowed } = access;
+  if (!allowed || !sectionAllowed(access, 'departments')) return <NotAuthorized session={session} />;
   const data = await adminGet<{ icons: string[]; results: AdminDepartment[] }>(session, '/departments/');
   const departments = data.results;
 
   return (
-    <AdminShell session={session} section="departments" title="Departments" crumbs={[{ label: 'Departments' }]}>
+    <AdminShell access={access} section="departments" title="Departments" crumbs={[{ label: 'Departments' }]}>
+      <DoneNotice params={await searchParams} />
       <Notice>
         Departments organize documents; they never limit who can open a general document. A deactivated department
         disappears from the home page and from Upload, but its documents stay where they are.
@@ -118,6 +122,7 @@ export default async function AdminDepartmentsPage() {
                       ↓ Down
                     </button>
                   </form>
+                  <DeleteDepartment department={department} others={departments.filter((item) => item.id !== department.id && item.is_active)} />
                 </div>
               </div>
 
@@ -174,5 +179,67 @@ export default async function AdminDepartmentsPage() {
         </ol>
       </section>
     </AdminShell>
+  );
+}
+
+function DeleteDepartment({ department, others }: { department: AdminDepartment; others: AdminDepartment[] }) {
+  const { documents, documents_in_recycle_bin: inBin } = department.usage;
+  const total = documents + inBin;
+  return (
+    <DialogForm
+      action={deleteDepartment.bind(null, department.id)}
+      formId={`delete-department-${department.id}`}
+      trigger="Delete or merge…"
+      triggerClassName={buttonSmall}
+      title={`Delete “${department.name}”`}
+      confirmLabel="Delete department"
+      danger
+      summary={
+        total === 0 ? (
+          <p>This department has no documents. It will be removed from lists and from Upload.</p>
+        ) : (
+          <p>
+            It holds <strong>{documents}</strong> document{documents === 1 ? '' : 's'}
+            {inBin > 0 && (
+              <>
+                {' '}
+                and <strong>{inBin}</strong> in the recycle bin
+              </>
+            )}
+            . Choose what happens to them. No file is deleted.
+          </p>
+        )
+      }
+    >
+      {total > 0 && (
+        <fieldset className="flex flex-col gap-3 rounded-lg border border-line p-3">
+          <legend className="px-1 text-base font-semibold">Documents</legend>
+          <label className="flex items-start gap-3 text-base">
+            <input type="radio" name="mode" value="move" defaultChecked className="mt-1 size-5 shrink-0" />
+            <span>Move them to another department, then delete (merge)</span>
+          </label>
+          <label htmlFor={`target-${department.id}`} className="sr-only">
+            Department to move them to
+          </label>
+          <select id={`target-${department.id}`} name="target_id" defaultValue="" className={fieldClass}>
+            <option value="" disabled>
+              Choose a department
+            </option>
+            {others.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+          <label className="flex items-start gap-3 text-base">
+            <input type="radio" name="mode" value="trash" className="mt-1 size-5 shrink-0" />
+            <span>
+              Delete the department and move its documents to the recycle bin
+              <span className="block text-sm text-muted">They can be restored later and given a department again.</span>
+            </span>
+          </label>
+        </fieldset>
+      )}
+    </DialogForm>
   );
 }

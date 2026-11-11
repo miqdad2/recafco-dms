@@ -136,13 +136,36 @@ by department. A department is a label for organizing documents.
 - Lockout counts per username, so one locked user does not affect others on
   the same office IP address.
 
+## Unit 5 changes: full administrator control (supersedes parts of Units 2–3)
+
+- **System Administrators** (group "RECAFCO Administrators") now have one
+  Mayan role, "RECAFCO System Administrators", with ACLs on **every** RECAFCO
+  document type: read, download, file and version view, edit properties,
+  recycle, restore and delete. They can therefore open every general and
+  confidential document. There are still no global permissions
+  (`recafco_setup` checks this). The Unit 3 rule "administrators need
+  membership" no longer applies.
+- **Employees and controllers are unchanged**: they still see only general
+  documents and their own confidential groups. Tests in
+  `11-admin-control.test.ts` check that they gain nothing.
+- **Application roles** (`AppRole`) open parts of the administration area:
+  departments, categories, users, confidential groups, documents, recycle
+  bin, permanent deletion and the activity log. A role never gives document
+  access: document actions apply only to documents the person can already
+  open. Only System Administrators manage roles or grant administrative
+  authority.
+- **Confidential → general** is possible, but only through the explicit
+  "Change who can open it" action, which is recorded. Deleting a group
+  moves its documents to another group or deletes them permanently; it
+  never makes them general.
+- **Recycle bin:** Mayan's trash. Trashed documents disappear from every
+  employee list, search, favourite and download, because the portal reads
+  `Document.valid` through ACLs.
+
 ## Not yet decided (needs RECAFCO)
 
 - Outside (internet) access: who may connect from outside, through what, and
   which additional verification (for example a second factor) is required.
   **Not built: sign-in today is username and password only.**
 
-- Releasing a confidential document back to general (and who may do it).
 - Who should be in each confidential group (the dev users are samples).
-- Whether administrators should be prevented from adding themselves to groups
-  (today: allowed and audited).

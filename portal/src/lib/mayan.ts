@@ -1,6 +1,25 @@
 import 'server-only';
+import { Agent } from 'undici';
 import { config } from './config';
 import { deleteSessionsForToken } from './session-store';
+
+/*
+ * Connections to Mayan. Gunicorn closes a keep-alive connection when it is
+ * idle for 2 seconds and when it recycles a worker (every ~500 requests),
+ * right after a response. A request already sent on that connection fails
+ * with "other side closed", and nobody can tell whether Mayan ran it.
+ * - Reads reuse connections (idle time kept under Gunicorn's) and are
+ *   retried once below.
+ * - Writes are never retried, so each one uses a new connection
+ *   (pipelining 0 = no keep-alive). On the local network this costs little.
+ */
+const readAgent = new Agent({ keepAliveTimeout: 1_000, keepAliveMaxTimeout: 1_000 });
+const writeAgent = new Agent({ pipelining: 0 });
+const viaAgent = (init: RequestInit) => {
+  const method = (init.method ?? 'GET').toUpperCase();
+  const dispatcher = method === 'GET' || method === 'HEAD' ? readAgent : writeAgent;
+  return { ...init, dispatcher } as RequestInit;
+};
 
 /**
  * Server-side Mayan client. Every call is made with the signed-in
@@ -70,7 +89,11 @@ export type Me = {
   username: string;
   full_name: string;
   can_upload: boolean;
+  /** May open the administration area (has at least one admin permission). */
   is_admin: boolean;
+  is_system_admin: boolean;
+  /** Application permissions, e.g. "departments.manage" (see app_permissions.py). */
+  admin_permissions: string[];
   department_ids: number[];
   controller_department_ids: number[];
 };
@@ -99,7 +122,7 @@ export async function mayanRaw(
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Token ${token}`);
   if (!headers.has('Accept')) headers.set('Accept', 'application/json');
-  const request = () => fetch(url(path), { ...init, headers, cache: 'no-store', redirect: 'manual' });
+  const request = () => fetch(url(path), viaAgent({ ...init, headers, cache: 'no-store', redirect: 'manual' }));
   const method = (init.method ?? 'GET').toUpperCase();
   try {
     return await request();
@@ -190,12 +213,12 @@ export type SignInResult =
 export async function signIn(username: string, password: string): Promise<SignInResult> {
   let response: Response;
   try {
-    response = await fetch(url('/recafco/auth/login/'), {
+    response = await fetch(url('/recafco/auth/login/'), viaAgent({
       method: 'POST',
       body: JSON.stringify({ username, password }),
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       cache: 'no-store',
-    });
+    }));
   } catch {
     return { ok: false, reason: 'unavailable' };
   }
