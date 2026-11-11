@@ -202,4 +202,18 @@ Remaining limitations
   Enter opens it. Screenshots: docs/screenshots/department-cards/.
   Tests: typecheck, lint, unit 13/13, integration 04+10: 28/28.
 
+## Favicon (2026-11-11) — done, awaiting review
+
+- Favicon replaced with the complete original logo (trimmed of empty margin
+  only, proportions kept, Arabic and "Since 1976" included) centred on an
+  opaque white square with 1-2px padding: portal/src/app/favicon.ico (16, 32,
+  48; RGBA PNG entries, alpha 255 everywhere) and portal/src/app/apple-icon.png
+  (180, 10px padding). Next.js file conventions emit the <link> tags; no
+  metadata.icons, no other icon files. Rebuild: node scripts/make-favicons.mjs.
+- Verified: both assets 200 with hashed URLs, decoded by Edge at 16/32/48/180,
+  no 4xx among 132 responses across five pages. Headless Edge has no tab strip;
+  the tab is simulated in docs/screenshots/favicon/icons-in-browser.png.
+  Sidebar, login and other branding unchanged. Tests: typecheck, lint, build,
+  unit 13/13.
+
 Next unit: not started. Waiting for review.
