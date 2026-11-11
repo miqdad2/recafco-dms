@@ -124,4 +124,19 @@ Remaining limitations
   uploaded; axe-core and screen-reader checks not run; Arabic interface
   language not implemented.
 
+## Login refresh (2026-11-11) — done, awaiting review
+
+- Two-column sign-in on desktop (charcoal RECAFCO panel with decorative
+  precast linework, white 432px form panel); form only with a modest logo on
+  phones/tablets; no fixed heights. Same layout for the first-login
+  password change. UI only: authentication, lockout, sessions, CSRF and
+  redirects unchanged; no database or password-policy change.
+- Inline field errors, compact sign-in alert, small signed-out status,
+  Show/Hide inside the field, "Signing in…" with duplicate submit blocked.
+- Verified in Edge at 390/768/1440/1920px, short screens, 200% zoom,
+  keyboard, lockout, pending and first login (docs/login-refresh-report.md,
+  docs/screenshots/login-refresh/). Tests: 13/13 unit, 178/178 integration.
+- Not verified: real password-manager autofill (attributes checked only).
+  No temporary-password expiry exists to restyle.
+
 Next unit: not started. Waiting for review.

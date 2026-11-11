@@ -11,7 +11,18 @@ import {
   deleteSessionsForToken,
 } from '@/lib/session-store';
 
-export type LoginState = { error?: string; username?: string };
+/**
+ * Result of a sign-in attempt, rendered back into the form. Never contains
+ * the password. `fields` holds inline messages for empty fields; `error`
+ * is a sign-in failure (wrong details, lockout, system unavailable).
+ */
+export type LoginState = {
+  error?: string;
+  fields?: { username?: string; password?: string };
+  username?: string;
+  /** Changes on every attempt so the form can move focus to the problem. */
+  at?: number;
+};
 
 const SIGN_IN_ERRORS = {
   invalid: 'Username or password is not correct.',
@@ -29,14 +40,21 @@ export async function login(
   const password = String(formData.get('password') ?? '');
 
   if (!username || !password) {
-    return { error: 'Enter your username and password.', username };
+    return {
+      fields: {
+        ...(username ? {} : { username: 'Enter your username.' }),
+        ...(password ? {} : { password: 'Enter your password.' }),
+      },
+      username,
+      at: Date.now(),
+    };
   }
 
   // The password is checked by Mayan (Django's authenticate(), Mayan's own
   // user table and lockout). It is never stored or logged here.
   const result = await signIn(username, password);
   // Mayan gives the same answer for a wrong password and a disabled account.
-  if (!result.ok) return { error: SIGN_IN_ERRORS[result.reason], username };
+  if (!result.ok) return { error: SIGN_IN_ERRORS[result.reason], username, at: Date.now() };
 
   const sessionId = createSession({
     token: result.token,

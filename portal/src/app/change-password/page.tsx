@@ -1,7 +1,7 @@
-import Image from 'next/image';
 import { logout } from '@/app/actions';
 import { AppShell } from '@/components/app-shell';
-import { PageTitle, panelClass } from '@/components/ui';
+import { AuthLayout } from '@/components/auth-layout';
+import { PageTitle, buttonSecondary, panelClass } from '@/components/ui';
 import { requireSessionAllowingPasswordChange } from '@/lib/auth';
 import { ChangePasswordForm } from './change-password-form';
 
@@ -15,22 +15,19 @@ export default async function ChangePasswordPage() {
     // Signed in with a temporary password: nothing but this form and
     // "Sign out" is offered (Mayan refuses every other request too).
     return (
-      <main id="main" className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-10">
-        <div className="rounded-lg border-t-8 border-brand bg-surface p-6 shadow-sm sm:p-8">
-          <Image src="/recafco-logo.png" alt="RECAFCO" width={96} height={96} priority className="mx-auto" />
-          <h1 className="mt-4 text-center text-3xl font-bold">Choose your password</h1>
-          <p className="mt-3 text-lg">
-            Welcome, <strong>{session.fullName}</strong>. You signed in with a temporary password. Choose your own password
-            to continue.
-          </p>
-          <ChangePasswordForm temporary />
-          <form id="signout-form" action={logout} className="mt-6 border-t border-line pt-5">
-            <button type="submit" className="min-h-12 w-full rounded-lg border border-line-strong px-4 text-base font-semibold hover:bg-canvas">
-              Sign out
-            </button>
-          </form>
-        </div>
-      </main>
+      <AuthLayout>
+        <h1 className="text-2xl font-bold tracking-tight">Choose your password</h1>
+        <p className="mt-1 text-base text-muted">
+          Welcome, <strong className="text-ink">{session.fullName}</strong>. You signed in with a temporary password. Choose
+          your own password to continue.
+        </p>
+        <ChangePasswordForm temporary />
+        <form id="signout-form" action={logout} className="mt-6 border-t border-line pt-4">
+          <button type="submit" className={`${buttonSecondary} w-full`}>
+            Sign out
+          </button>
+        </form>
+      </AuthLayout>
     );
   }
 

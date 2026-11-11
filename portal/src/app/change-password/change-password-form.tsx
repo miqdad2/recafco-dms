@@ -25,7 +25,7 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
   const currentLabel = temporary ? 'Temporary password' : 'Current password';
   const fieldError = (name: string) =>
     errors[name] ? (
-      <p id={`${name}-error`} className="mt-2 text-base font-semibold text-brand-strong">
+      <p id={`${name}-error`} className="mt-1.5 text-base font-semibold text-brand-strong">
         {errors[name]}
       </p>
     ) : null;
@@ -33,7 +33,7 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
   return (
     <form ref={formRef} action={formAction} className="mt-6 flex flex-col gap-5" noValidate>
       {Object.keys(errors).length > 0 && (
-        <div role="alert" className="rounded-lg border border-brand/40 bg-brand-soft px-4 py-3 text-base font-semibold text-brand-strong">
+        <div role="alert" className="rounded-lg border border-brand/40 bg-brand-soft px-3 py-2.5 text-base font-semibold text-brand-strong">
           <p>{errors.form ?? 'Your password was not changed.'}</p>
           {Object.entries(errors)
             .filter(([field]) => field !== 'form')
@@ -66,7 +66,7 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
         <label htmlFor="new_password" className="mb-1.5 block text-base font-semibold">
           New password
         </label>
-        <p id="new_password-hint" className="mb-2 text-base text-muted">
+        <p id="new_password-hint" className="mb-1.5 text-sm text-muted">
           At least 6 characters. Letters, numbers or both — no special characters needed.
         </p>
         <PasswordInput
@@ -91,7 +91,7 @@ export function ChangePasswordForm({ temporary }: { temporary: boolean }) {
         />
         {fieldError('new_password_again')}
       </div>
-      <button type="submit" className={buttonPrimary} disabled={pending}>
+      <button type="submit" className={`${buttonPrimary} w-full`} disabled={pending}>
         {pending ? 'Saving…' : temporary ? 'Save my password and continue' : 'Change password'}
       </button>
     </form>

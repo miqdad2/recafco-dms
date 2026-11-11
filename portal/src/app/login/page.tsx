@@ -1,5 +1,6 @@
-import Image from 'next/image';
 import { redirect } from 'next/navigation';
+import { AuthLayout } from '@/components/auth-layout';
+import { Icon } from '@/components/icons';
 import { getSession } from '@/lib/auth';
 import { LoginForm } from './login-form';
 
@@ -10,24 +11,25 @@ export default async function LoginPage({ searchParams }: PageProps<'/login'>) {
   if (await getSession()) redirect('/');
   const params = await searchParams;
   const notice = params.signedout
-    ? 'You have signed out.'
+    ? { icon: 'check', text: 'You have signed out.', tone: 'text-ok' }
     : params.ended
-      ? 'Please sign in to continue.'
+      ? { icon: 'info', text: 'Please sign in to continue.', tone: 'text-info' }
       : null;
 
   return (
-    <main id="main" className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-10">
-      <div className="rounded-lg border-t-8 border-brand bg-surface p-6 shadow-sm sm:p-8">
-        <Image src="/recafco-logo.png" alt="RECAFCO" width={120} height={120} priority className="mx-auto" />
-        <h1 className="mt-4 text-center text-3xl font-bold">Documents</h1>
-        <p className="mt-1 text-center text-lg text-muted">Sign in with your RECAFCO account</p>
-        {notice && (
-          <p role="status" className="mt-6 rounded-lg bg-canvas px-4 py-3 text-lg">
-            {notice}
-          </p>
-        )}
-        <LoginForm />
-      </div>
-    </main>
+    <AuthLayout>
+      {notice && (
+        <p role="status" className={`mb-4 inline-flex items-center gap-1.5 self-start text-sm font-semibold ${notice.tone}`}>
+          <Icon name={notice.icon} className="size-4 shrink-0" />
+          {notice.text}
+        </p>
+      )}
+      <h1 className="text-2xl font-bold tracking-tight">Sign in</h1>
+      <p className="mt-1 mb-6 text-base text-muted">Use your RECAFCO account.</p>
+      <LoginForm />
+      <p className="mt-6 border-t border-line pt-4 text-sm text-muted">
+        Need help signing in? Contact your system administrator.
+      </p>
+    </AuthLayout>
   );
 }

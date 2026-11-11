@@ -1,0 +1,231 @@
+{
+  "results": [
+    {
+      "name": "01-login-phone",
+      "path": "/login",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 844
+    },
+    {
+      "name": "01-login-tablet",
+      "path": "/login",
+      "width": 768,
+      "height": 1024,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 1024
+    },
+    {
+      "name": "01-login-desktop",
+      "path": "/login",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 900
+    },
+    {
+      "name": "01-login-wide",
+      "path": "/login",
+      "width": 1920,
+      "height": 1080,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 1080
+    },
+    {
+      "name": "02-signed-out-desktop",
+      "path": "/login?signedout=1",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 900
+    },
+    {
+      "name": "02-signed-out-phone",
+      "path": "/login?signedout=1",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 844
+    },
+    {
+      "name": "03-empty-submit-before",
+      "path": "/login",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 900
+    },
+    {
+      "name": "03-empty-submit-desktop",
+      "path": "/login",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 900
+    },
+    {
+      "name": "04-wrong-password-desktop",
+      "path": "/login",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 900
+    },
+    {
+      "name": "04-wrong-password-phone",
+      "path": "/login",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 844
+    },
+    {
+      "name": "05-password-shown-desktop",
+      "path": "/login",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 900
+    },
+    {
+      "name": "06-keyboard-focus-username",
+      "path": "/login",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 900
+    },
+    {
+      "name": "06-keyboard-focus-toggle",
+      "path": "/login",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 900
+    },
+    {
+      "name": "07-lockout-desktop",
+      "path": "/login",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 900
+    },
+    {
+      "name": "07-lockout-phone",
+      "path": "/login",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 850
+    },
+    {
+      "name": "08-pending-desktop",
+      "path": "/login",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 900
+    },
+    {
+      "name": "09-short-desktop-1440x600",
+      "path": "/login",
+      "width": 1440,
+      "height": 600,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 680
+    },
+    {
+      "name": "09-phone-keyboard-open-390x480",
+      "path": "/login",
+      "width": 390,
+      "height": 480,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 664
+    },
+    {
+      "name": "09-zoom-200-desktop",
+      "path": "/login",
+      "width": 720,
+      "height": 450,
+      "scale": 2,
+      "horizontalScroll": false,
+      "contentHeight": 680
+    },
+    {
+      "name": "10-first-login-change-password-desktop",
+      "path": "/change-password",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 911
+    },
+    {
+      "name": "10-first-login-change-password-phone",
+      "path": "/change-password",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 959
+    },
+    {
+      "name": "11-first-login-too-short-desktop",
+      "path": "/change-password",
+      "width": 1440,
+      "height": 900,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 1037
+    },
+    {
+      "name": "11-first-login-too-short-phone",
+      "path": "/change-password",
+      "width": 390,
+      "height": 844,
+      "scale": 1,
+      "horizontalScroll": false,
+      "contentHeight": 1109
+    }
+  ],
+  "checks": {
+    "autocomplete": {
+      "username": "username",
+      "password": "current-password",
+      "usernameValue": "",
+      "passwordValue": ""
+    },
+    "wrongPassword": {
+      "usernameKept": "dev_employee_a",
+      "passwordInHtml": false
+    },
+    "toggleBefore": "Show password | type=password",
+    "toggleAfter": "Hide password | type=text",
+    "focusAfter2Tabs": "username",
+    "focusAfter4Tabs": "password toggle",
+    "pending": {
+      "text": "Signing in…",
+      "disabled": true
+    }
+  }
+}
