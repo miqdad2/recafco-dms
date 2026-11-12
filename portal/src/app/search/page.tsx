@@ -47,9 +47,14 @@ export default async function SearchPage({ searchParams }: PageProps<'/search'>)
   const query = String(params.q ?? '').trim().slice(0, 200);
   const page = Math.max(1, Math.min(500, Number(params.page) || 1));
 
-  const departments = await withMayan(() => getDepartments(session.token));
-  const all = [...departments.departments, ...departments.inactive_departments];
   const requested = parseId(String(params.department ?? ''));
+  // Without a department, the search does not depend on the department
+  // list, so both are fetched at the same time.
+  const [departments, allDepartmentsSearch] = await Promise.all([
+    withMayan(() => getDepartments(session.token)),
+    requested === null && query ? withMayan(() => searchDocuments(session.token, query, Math.min(page, 50))) : null,
+  ]);
+  const all = [...departments.departments, ...departments.inactive_departments];
   const department = all.find((item) => item.id === requested);
 
   let results: DocumentSummary[] | null = null;
@@ -59,7 +64,8 @@ export default async function SearchPage({ searchParams }: PageProps<'/search'>)
     results = data.results;
     count = data.count;
   } else if (query) {
-    const data = await withMayan(() => searchDocuments(session.token, query, Math.min(page, 50)));
+    // An unknown department ID searches all departments, as before.
+    const data = allDepartmentsSearch ?? (await withMayan(() => searchDocuments(session.token, query, Math.min(page, 50))));
     results = data.results;
     count = data.count;
   }

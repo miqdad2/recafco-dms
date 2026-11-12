@@ -375,9 +375,10 @@ export async function getMyUploads(token: string): Promise<DocumentSummary[]> {
 export type SearchResult = { count: number; results: DocumentSummary[] };
 
 /**
- * Mayan's own document search, run as the employee. Mayan filters results by
- * that employee's view permission. The extension then adds department and
- * category to each result, checking access again.
+ * Mayan's own document search, run as the employee, in one call: the
+ * extension runs Mayan's search with the employee's view permission and
+ * returns the summaries (department, category, ...) of the requested page.
+ * Same results, order (by title) and count as Mayan's search API.
  */
 export async function searchDocuments(
   token: string,
@@ -385,18 +386,11 @@ export async function searchDocuments(
   page: number,
 ): Promise<SearchResult> {
   const params = new URLSearchParams({ q: query, page: String(page), page_size: '20' });
-  const data = await mayanJson<{ count: number; results: { id: number }[] }>(
+  const data = await mayanJson<{ count: number; results: DocumentSummary[] }>(
     token,
-    `/search/documents.documentsearchresult/?${params}`,
+    `/recafco/search/?${params}`,
   );
-  if (data.results.length === 0) return { count: data.count, results: [] };
-  const ids = new URLSearchParams();
-  for (const result of data.results) ids.append('id', String(result.id));
-  const summaries = await mayanJson<{ results: DocumentSummary[] }>(
-    token,
-    `/recafco/documents/?${ids}`,
-  );
-  return { count: data.count, results: summaries.results };
+  return { count: data.count, results: data.results };
 }
 
 export type UploadOperation = {

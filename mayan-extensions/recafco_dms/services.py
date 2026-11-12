@@ -11,14 +11,21 @@ from django.core.exceptions import (
 )
 from django.core.files import File
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, F, Window
+from django.db.models.functions import RowNumber
 from django.utils import timezone
 
 from mayan.apps.acls.models import AccessControlList
 from mayan.apps.document_favorites.models import FavoriteDocument
 from mayan.apps.documents.literals import DEFAULT_DOCUMENT_FILE_ACTION_NAME
 from mayan.apps.documents.models.document_file_models import DocumentFile
+from mayan.apps.documents.models.document_file_page_models import (
+    DocumentFilePage
+)
 from mayan.apps.documents.models.document_models import Document
+from mayan.apps.documents.models.document_version_page_models import (
+    DocumentVersionPage
+)
 from mayan.apps.documents.models.document_type_models import DocumentType
 from mayan.apps.documents.permissions import permission_document_view
 from mayan.apps.documents.tasks import task_document_file_size_update
@@ -404,17 +411,30 @@ def get_confidential_group(value, field='confidential_group'):
 
 # ------------------------------------------------------------ serializing
 
-def get_processing_state(document):
+def get_processing_state(document, page_info=None):
+    """
+    `page_info` (from get_page_info) answers the page questions for a whole
+    list in two or three queries; without it, this document is queried.
+    """
     version = document.version_active
     if version is not None:
-        if version.version_pages.exists():
+        if page_info is not None:
+            has_pages = page_info.page_count(version.pk) > 0
+        else:
+            has_pages = version.version_pages.exists()
+        if has_pages:
             return STATE_READY
         # Mayan creates the version only after page detection has finished.
         # A version with no pages from a file with no pages means Mayan could
         # not read the file; the original is still downloadable.
         file_latest = document.file_latest
-        if file_latest is not None and not file_latest.file_pages.exists():
-            return STATE_NO_PREVIEW
+        if file_latest is not None:
+            if page_info is not None:
+                file_has_pages = page_info.file_has_pages(file_latest.pk)
+            else:
+                file_has_pages = file_latest.file_pages.exists()
+            if not file_has_pages:
+                return STATE_NO_PREVIEW
 
     age = (timezone.now() - document.datetime_created).total_seconds()
     if age > PROCESSING_DELAYED_AFTER_SECONDS:
@@ -469,10 +489,84 @@ def is_confidential(document):
     return document.document_type.label != DOCUMENT_TYPE_GENERAL_LABEL
 
 
-def serialize_document(document, user):
+class PageInfo:
+    """
+    Page facts for a list of documents, read in at most three queries
+    instead of ~3 per document (measured: a 20-row list went from 65 to 6
+    queries; see docs/performance-report.md):
+
+    1. number of pages per active version,
+    2. the first SUMMARY_PAGE_LIMIT page IDs per version, in page order,
+    3. only if some version has no pages: which latest files have pages.
+
+    It only reads page rows of documents the caller already passed in, i.e.
+    documents the caller established the user may view.
+    """
+
+    def __init__(self, documents):
+        documents = list(documents)
+        version_ids = [d.version_active_id for d in documents if d.version_active_id]
+        self._counts = {}
+        self._ids = {}
+        if version_ids:
+            self._counts = dict(
+                DocumentVersionPage.objects.filter(
+                    document_version_id__in=version_ids
+                ).order_by().values('document_version_id').annotate(
+                    count=Count('pk')
+                ).values_list('document_version_id', 'count')
+            )
+            rows = DocumentVersionPage.objects.filter(
+                document_version_id__in=self._counts.keys()
+            ).annotate(
+                position=Window(
+                    expression=RowNumber(),
+                    partition_by=F('document_version_id'),
+                    order_by=(F('page_number').asc(), F('pk').asc())
+                )
+            ).filter(position__lte=SUMMARY_PAGE_LIMIT).order_by(
+                'document_version_id', 'page_number', 'pk'
+            ).values_list('document_version_id', 'pk')
+            for version_id, page_id in rows:
+                self._ids.setdefault(version_id, []).append(page_id)
+        # Latest files of documents whose version has no pages (rare: still
+        # processing, or a file Mayan could not read).
+        file_ids = [
+            d.file_latest_id for d in documents
+            if d.version_active_id and not self._counts.get(d.version_active_id)
+            and d.file_latest_id
+        ]
+        self._files_with_pages = set(
+            DocumentFilePage.objects.filter(
+                document_file_id__in=file_ids
+            ).order_by().values_list('document_file_id', flat=True).distinct()
+        ) if file_ids else set()
+
+    def page_count(self, version_id):
+        return self._counts.get(version_id, 0)
+
+    def page_ids(self, version_id):
+        return self._ids.get(version_id, [])
+
+    def file_has_pages(self, file_id):
+        return file_id in self._files_with_pages
+
+
+def serialize_documents(documents, user):
+    """serialize_document for a list, with batched page queries."""
+    documents = list(documents)
+    page_info = PageInfo(documents=documents)
+    return [
+        serialize_document(document=document, user=user, page_info=page_info)
+        for document in documents
+    ]
+
+
+def serialize_document(document, user, page_info=None):
     """
     Portal view of a document. The caller must already have established
-    that `user` may view `document`.
+    that `user` may view `document`. Lists pass `page_info` (see
+    serialize_documents); a single document is queried directly.
     """
     classification = get_classification(document=document)
     if classification is not None and classification.department_id and classification.category_id:
@@ -500,7 +594,10 @@ def serialize_document(document, user):
     file_latest = document.file_latest
     version = document.version_active
 
-    if version is not None:
+    if version is not None and page_info is not None:
+        page_count = page_info.page_count(version.pk)
+        page_ids = page_info.page_ids(version.pk)
+    elif version is not None:
         page_queryset = version.version_pages.order_by('page_number')
         page_count = page_queryset.count()
         page_ids = list(
@@ -531,7 +628,7 @@ def serialize_document(document, user):
         'id': document.pk,
         'is_mine': bool(upload and upload.uploader_id and upload.uploader_id == user.pk),
         'label': document.label,
-        'state': get_processing_state(document=document),
+        'state': get_processing_state(document=document, page_info=page_info),
         # Original uploader: immutable evidence; null when not recorded.
         'uploaded_by': uploader_display(upload=upload),
         'responsible': responsible_display(document=document, upload=upload),
@@ -559,10 +656,12 @@ def get_document_summaries(document_ids, user):
     ).select_related(*DOCUMENT_RELATED)
     by_id = {document.pk: document for document in queryset}
     # Keep the caller's order; silently drop documents the user cannot see.
-    return [
-        serialize_document(document=by_id[document_id], user=user)
-        for document_id in document_ids if document_id in by_id
-    ]
+    return serialize_documents(
+        documents=[
+            by_id[document_id] for document_id in document_ids
+            if document_id in by_id
+        ], user=user
+    )
 
 
 def get_my_uploads(limit, user):
@@ -570,14 +669,11 @@ def get_my_uploads(limit, user):
     uploads = PortalUpload.objects.filter(
         document__in=accessible, uploader=user
     ).select_related(
-        'document', 'document__document_type', 'document__file_latest',
-        'document__version_active', 'document__recafco_classification__department',
-        'document__recafco_classification__category', 'uploader'
+        'uploader', *('document__{}'.format(path) for path in DOCUMENT_RELATED)
     )[:limit]
-    return [
-        serialize_document(document=upload.document, user=user)
-        for upload in uploads
-    ]
+    return serialize_documents(
+        documents=[upload.document for upload in uploads], user=user
+    )
 
 
 # ------------------------------------------------------------ departments
@@ -633,6 +729,58 @@ def search_document_queryset(query, queryset, user):
     return result
 
 
+class SearchPageNotFound(Exception):
+    """The requested page is past the last page (Mayan answers 404)."""
+
+
+def search_documents(query, user, page, page_size):
+    """
+    Search across all departments, returning portal summaries in one call.
+
+    Replaces two portal calls (Mayan's search API, then summaries for the
+    returned IDs) and keeps their behaviour:
+    - the same Mayan search: the same SearchBackend.search() call Mayan's
+      search API view makes (search model "documents.documentsearchresult",
+      the user's "View documents" ACLs, Mayan's results limit);
+    - the same order: by title, as Mayan's model ordering; ties by ID (Mayan
+      leaves ties unordered);
+    - the same count: every match the user may view, within Mayan's limit;
+    - the same pages: page numbers from 1, a page past the last page is
+      refused (Mayan: 404 "Invalid page."), page 1 of no results is empty;
+    - the same summaries: get_document_summaries(), which checks access
+      again and drops documents in the recycle bin.
+    Mayan's search errors propagate (the view maps them as Mayan does).
+    """
+    search_model = SearchModel.get(name='documents.documentsearchresult')
+    interpreter = SearchInterpreter.init(
+        query={'q': query}, search_model=search_model
+    )
+    query_clean = interpreter.do_query_cleanup()
+    if not query_clean or interpreter.is_empty:
+        count = 0
+        document_ids = []
+    else:
+        saved_resultset, queryset = SearchBackend.get_instance().search(
+            query=query_clean, search_model=search_model, user=user
+        )
+        count = queryset.count()
+        start = (page - 1) * page_size
+        document_ids = list(
+            queryset.order_by('label', 'pk').values_list('pk', flat=True)[
+                start:start + page_size
+            ]
+        )
+    last_page = max(1, -(-count // page_size))
+    if page > last_page:
+        raise SearchPageNotFound
+    return {
+        'count': count,
+        'page': page,
+        'page_size': page_size,
+        'results': get_document_summaries(document_ids=document_ids, user=user)
+    }
+
+
 def get_department_documents(
     department, user, page, page_size, category_id=None, query=None
 ):
@@ -660,10 +808,7 @@ def get_department_documents(
         'count': count,
         'page': page,
         'page_size': page_size,
-        'results': [
-            serialize_document(document=document, user=user)
-            for document in documents
-        ]
+        'results': serialize_documents(documents=documents, user=user)
     }
 
 
@@ -683,10 +828,9 @@ def get_favorites(user):
     ).select_related(
         *('document__{}'.format(path) for path in DOCUMENT_RELATED)
     ).order_by('-datetime_added')[:FAVORITES_LIMIT]
-    return [
-        serialize_document(document=favorite.document, user=user)
-        for favorite in favorites
-    ]
+    return serialize_documents(
+        documents=[favorite.document for favorite in favorites], user=user
+    )
 
 
 def set_favorite(document, user, value):
@@ -868,8 +1012,7 @@ def get_recent_documents(user, page, page_size):
         'has_more': len(documents) > page_size,
         'page': page,
         'page_size': page_size,
-        'results': [
-            serialize_document(document=document, user=user)
-            for document in documents[:page_size]
-        ]
+        'results': serialize_documents(
+            documents=documents[:page_size], user=user
+        )
     }

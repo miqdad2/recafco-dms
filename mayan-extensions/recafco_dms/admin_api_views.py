@@ -57,7 +57,7 @@ from .models import (
 )
 from .passwords import reset_password_by_admin
 from .services import (
-    DOCUMENT_RELATED, InputRejected, get_confidential_group,
+    DOCUMENT_RELATED, InputRejected, PageInfo, get_confidential_group,
     serialize_audit_entry, serialize_category, serialize_department,
     serialize_document, user_display
 )
@@ -566,11 +566,11 @@ class DocumentAdminView(AdminAPIView):
         return super().get_permissions()
 
 
-def serialize_admin_document(document, user, detail=False):
+def serialize_admin_document(document, user, detail=False, page_info=None):
     if detail:
         data = serialize_document_detail(document=document, user=user)
     else:
-        data = serialize_document(document=document, user=user)
+        data = serialize_document(document=document, user=user, page_info=page_info)
     data['in_trash'] = document.in_trash
     data['trashed_at'] = document.trashed_date_time.isoformat() if document.trashed_date_time else None
     return data
@@ -614,9 +614,14 @@ class APIAdminDocumentListView(DocumentAdminView):
         count, documents = paginate(
             queryset=queryset.select_related(*DOCUMENT_RELATED).order_by(order, '-pk'), page=page
         )
+        documents = list(documents)
+        page_info = PageInfo(documents=documents)
         return Response({
             'count': count, 'page': page, 'page_size': ADMIN_PAGE_SIZE,
-            'results': [serialize_admin_document(document, request.user) for document in documents]
+            'results': [
+                serialize_admin_document(document, request.user, page_info=page_info)
+                for document in documents
+            ]
         })
 
 

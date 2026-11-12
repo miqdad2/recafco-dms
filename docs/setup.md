@@ -93,6 +93,31 @@ npm run build
 npm run test:integration     # needs the dev stack; starts the portal itself
 ```
 
+**Separate test stack.** The dev stack also holds load-test data (2,000
+synthetic documents, 60 `lt_emp_*` accounts; see
+`docs/performance-report.md`). To run the suite on a clean database, start a
+second stack from the same compose file with its own project name, port and
+volumes, set it up once, and point the tests and the portal at it:
+
+```sh
+RECAFCO_DEV_MAYAN_PORT=8092 docker compose --project-name recafco-dms-test \
+  -f deploy/dev/compose.yaml up -d                # first start: a few minutes
+export RECAFCO_TEST_PROJECT=recafco-dms-test      # also used by scripts/dev-mayan.sh
+sh scripts/dev-mayan.sh migrate recafco_dms
+sh scripts/dev-mayan.sh recafco_setup --departments "Finance (dev sample),Procurement (dev sample),Projects (dev sample),Production (dev sample)" \
+  --categories "Purchase order,Bill,Invoice,Other"
+sh scripts/dev-mayan.sh recafco_dev users
+cd portal && npm run build
+RECAFCO_TEST_MAYAN_PORT=8092 MAYAN_URL=http://127.0.0.1:8092 \
+  PORTAL_URL=http://127.0.0.1:3109 PORTAL_SESSION_DB=.data/sessions-test.sqlite \
+  npm run test:integration
+```
+
+Port 3108 is taken by test 08 (its second portal process), so the test
+portal uses 3109. Stop the stack afterwards with `docker compose --project-name recafco-dms-test -f
+deploy/dev/compose.yaml stop`. Memory: the Docker VM must hold the stacks
+that run at the same time (each Mayan container is limited to 2.5 GiB).
+
 Screenshots (portal running on 127.0.0.1:3107, Microsoft Edge installed):
 
 ```sh

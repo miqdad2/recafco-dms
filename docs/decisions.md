@@ -207,3 +207,16 @@ New rules:
 | Every admin change writes an append-only `AuditEntry`. | History must survive deactivation and corrections. |
 | Counts on department cards are computed from the documents the caller may view. | Confidential documents must not leak through numbers. |
 | Department search runs Mayan's own search engine on a queryset already limited to the department and the caller's access. | Correct counts and pagination; same matching as company-wide search. |
+
+## Performance optimizations (2026-11-12)
+
+Measured first (`docs/performance-report.md`); development only.
+
+| Decision | Why |
+|---|---|
+| Company-wide search is one extension call, `GET recafco/search/?q=&page=&page_size=`, instead of Mayan's search API followed by `recafco/documents/?id=…`. It makes the same `SearchBackend.search()` call as Mayan's search API view (search model `documents.documentsearchresult`, the caller's "View documents" ACLs, Mayan's results limit), counts the same queryset, orders by title like Mayan's model (ties by ID; Mayan leaves ties unordered), refuses a page past the last page with 404 like Mayan, and builds the summaries with `get_document_summaries()`, which checks access again. Mayan's search errors are answered as Mayan answers them (400, 503). | Mayan's search serializer ran 264 queries per page of 20 for preview data the portal discarded. Search was the first bottleneck. |
+| Lists build page facts for the whole page at once (`PageInfo`: page counts, first 50 page IDs per version, and, only when needed, which files have pages). Used by department lists, search results, summaries, My uploads, favorites, recent documents and the admin document list. The single-document view keeps its direct queries. | ~3 queries per document became 2–3 per list; the output is unchanged (checked against the single-document view in tests). |
+| The search page fetches the department list and the search at the same time when no department is chosen. | The search does not depend on the department list. |
+| Worker counts, worker recycling and memory limits stay as they are. `deploy/dev/compose.loadtest-tuned.yaml` is a dev-only experiment. | Production configuration needs its own approval and measurement on the server. |
+| OCR policy unchanged. | Skipping OCR for PDFs that already contain text must first be evaluated for search completeness with real text-only and mixed scanned/text PDFs. |
+| Password hashing unchanged (PBKDF2, 1,000,000 iterations). | Sign-in cost is a capacity matter, not a reason to weaken hashing. |

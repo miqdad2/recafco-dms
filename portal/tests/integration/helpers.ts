@@ -25,7 +25,15 @@ function loadDevEnv(): Record<string, string> {
 
 const env = loadDevEnv();
 
-export const MAYAN = `http://127.0.0.1:${env.RECAFCO_DEV_MAYAN_PORT ?? '8091'}/api/v4`;
+/**
+ * Which isolated stack the tests use. Default: the dev stack. Set
+ * RECAFCO_TEST_PROJECT / RECAFCO_TEST_MAYAN_PORT to run against a separate
+ * test stack (same compose file, own volumes), e.g. to keep load-test data
+ * out of the test database.
+ */
+export const COMPOSE_PROJECT = process.env.RECAFCO_TEST_PROJECT ?? 'recafco-dms-dev';
+export const MAYAN_PORT = process.env.RECAFCO_TEST_MAYAN_PORT ?? env.RECAFCO_DEV_MAYAN_PORT ?? '8091';
+export const MAYAN = `http://127.0.0.1:${MAYAN_PORT}/api/v4`;
 export const PORTAL = process.env.PORTAL_URL ?? 'http://127.0.0.1:3107';
 export const RUN = `t${Date.now().toString(36)}`;
 
@@ -49,7 +57,7 @@ export function dev<T = Record<string, unknown>>(...args: string[]): T {
   const output = execFileSync(
     'docker',
     [
-      'compose', '--project-name', 'recafco-dms-dev', '--file', composeFile,
+      'compose', '--project-name', COMPOSE_PROJECT, '--file', composeFile,
       'exec', '-T', '--user', 'mayan', 'app',
       '/opt/mayan-edms/bin/mayan-edms.py', 'recafco_dev', ...args,
     ],
@@ -66,7 +74,7 @@ export function setupReport(): {
   const output = execFileSync(
     'docker',
     [
-      'compose', '--project-name', 'recafco-dms-dev', '--file', composeFile,
+      'compose', '--project-name', COMPOSE_PROJECT, '--file', composeFile,
       'exec', '-T', '--user', 'mayan', 'app',
       '/opt/mayan-edms/bin/mayan-edms.py', 'recafco_setup',
       '--departments', 'Finance (dev sample),Procurement (dev sample),Projects (dev sample),Production (dev sample)',

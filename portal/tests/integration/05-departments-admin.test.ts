@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-  DENIED, PORTAL, RUN, type PortalSession, api, dev, json, makePdf,
+  COMPOSE_PROJECT, DENIED, PORTAL, RUN, type PortalSession, api, dev, json, makePdf,
   portalAction, portalGet, portalLogin, portalUpload, tokenFor, users, waitFor,
 } from './helpers';
 
@@ -217,7 +217,7 @@ describe('confidential documents stay restricted', () => {
 function execSetupReport(): string {
   // recafco_setup without arguments: re-applies the model, adds nothing.
   return execFileSync('docker', [
-    'compose', '--project-name', 'recafco-dms-dev', '--file', path.resolve(__dirname, '..', '..', '..', 'deploy', 'dev', 'compose.yaml'),
+    'compose', '--project-name', COMPOSE_PROJECT, '--file', path.resolve(__dirname, '..', '..', '..', 'deploy', 'dev', 'compose.yaml'),
     'exec', '-T', '--user', 'mayan', 'app', '/opt/mayan-edms/bin/mayan-edms.py', 'recafco_setup',
   ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 }

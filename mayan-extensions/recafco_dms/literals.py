@@ -84,6 +84,10 @@ DEPARTMENT_DOCUMENTS_MAXIMUM_PAGE_SIZE = 50
 # Home page "Recently uploaded" list (all departments the user can see).
 RECENT_DOCUMENTS_PAGE_SIZE = 8
 RECENT_DOCUMENTS_MAXIMUM_PAGE_SIZE = 20
+# Search across all departments (recafco/search/). Summaries are batched,
+# so the page size cannot exceed SUMMARY_BATCH_LIMIT.
+SEARCH_PAGE_SIZE = 20
+SEARCH_MAXIMUM_PAGE_SIZE = 50
 ADMIN_PAGE_SIZE = 25
 FAVORITES_LIMIT = 100
 QUERY_MAX_LENGTH = 200

@@ -11,9 +11,15 @@ from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.http import Http404
 
 from drf_spectacular.utils import extend_schema
+from mayan.apps.dynamic_search.exceptions import (
+    DynamicSearchAPIErrorServiceUnavailable,
+    DynamicSearchBackendResourceError, DynamicSearchException
+)
 from rest_framework import status
 from rest_framework.authtoken.models import Token
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import (
+    NotFound, ParseError, PermissionDenied, ValidationError
+)
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -24,15 +30,17 @@ from .app_permissions import can_use_admin_area, get_app_permissions, has_app_pe
 from .literals import (
     DEPARTMENT_DOCUMENTS_MAXIMUM_PAGE_SIZE, DEPARTMENT_DOCUMENTS_PAGE_SIZE,
     MY_UPLOADS_DEFAULT_LIMIT, MY_UPLOADS_MAXIMUM_LIMIT,
-    RECENT_DOCUMENTS_MAXIMUM_PAGE_SIZE, RECENT_DOCUMENTS_PAGE_SIZE, SUMMARY_BATCH_LIMIT,
-    UPLOAD_ALLOWED_FIELDS
+    QUERY_MAX_LENGTH, RECENT_DOCUMENTS_MAXIMUM_PAGE_SIZE,
+    RECENT_DOCUMENTS_PAGE_SIZE, SEARCH_MAXIMUM_PAGE_SIZE, SEARCH_PAGE_SIZE,
+    SUMMARY_BATCH_LIMIT, UPLOAD_ALLOWED_FIELDS
 )
 from .models import (
     Category, ConfidentialAccessGroup, Department, DepartmentAssignment,
     UploadOperation
 )
 from .services import (
-    InputRejected, confidential_group_display, get_accessible_document,
+    InputRejected, SearchPageNotFound, confidential_group_display,
+    get_accessible_document, search_documents,
     get_department_documents, get_departments_for_user,
     get_document_summaries, get_editable_department_ids, get_favorite_ids,
     get_favorites, get_my_uploads, get_recent_documents, get_upload_options,
@@ -368,6 +376,38 @@ class APIPortalDocumentSummaryListView(PortalAPIView):
                 )
             }
         )
+
+
+@extend_schema(exclude=True)
+class APIPortalSearchView(PortalAPIView):
+    """
+    Mayan's document search across all departments, run as the caller, with
+    portal summaries in the same response. Same results, order, count and
+    pages as Mayan's search API followed by recafco/documents/?id=...
+    (see services.search_documents). Errors are answered as Mayan's search
+    API answers them: 400 for a query Mayan cannot run, 503 when the search
+    backend is unavailable, 404 for a page past the last page.
+    """
+    def get(self, request):
+        query = (request.query_params.get('q') or '').strip()[:QUERY_MAX_LENGTH]
+        page = query_int(request=request, name='page', default=1)
+        page_size = query_int(
+            request=request, name='page_size', default=SEARCH_PAGE_SIZE,
+            maximum=SEARCH_MAXIMUM_PAGE_SIZE
+        )
+        try:
+            return Response(
+                search_documents(
+                    page=page, page_size=page_size, query=query,
+                    user=request.user
+                )
+            )
+        except SearchPageNotFound:
+            raise NotFound('Invalid page.')
+        except DynamicSearchBackendResourceError as exception:
+            raise DynamicSearchAPIErrorServiceUnavailable(detail=str(exception))
+        except DynamicSearchException as exception:
+            raise ParseError(detail=str(exception))
 
 
 @extend_schema(exclude=True)
