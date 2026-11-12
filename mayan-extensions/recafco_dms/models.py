@@ -372,3 +372,24 @@ class AppRole(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class DeletedObject(models.Model):
+    """
+    Tombstone of a permanently deleted document or one of its parts (file,
+    file page, version, version page, metadata entry). Written in the same
+    transaction as the deletion; read by search_cleanup to end Mayan's
+    search-index retries for objects that are gone for good. Kept for a day.
+    """
+    app_label = models.CharField(max_length=100)
+    model_name = models.CharField(max_length=100)
+    object_id = models.BigIntegerField()
+    datetime_deleted = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=('app_label', 'model_name', 'object_id'),
+                name='recafco_deleted_object_unique'
+            )
+        ]

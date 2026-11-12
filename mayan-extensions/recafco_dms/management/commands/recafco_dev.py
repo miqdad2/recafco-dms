@@ -145,6 +145,37 @@ class Command(BaseCommand):
         subparsers.add_parser(
             'lockout-settings', help='Effective Mayan lockout settings.'
         )
+        sub = subparsers.add_parser(
+            'index-task-check',
+            help=(
+                "Runs Mayan's search-index task for one object synchronously "
+                '(eager, retries included) and reports the outcome.'
+            )
+        )
+        sub.add_argument('app_label')
+        sub.add_argument('model_name')
+        sub.add_argument('object_id', type=int)
+        sub = subparsers.add_parser(
+            'search-raw',
+            help=(
+                'Document IDs the search index itself returns for a query, '
+                'before access and existence filtering.'
+            )
+        )
+        sub.add_argument('query')
+        sub = subparsers.add_parser(
+            'index-tasks-for',
+            help='Queued or held search-index tasks for the given targets '
+            '(app_label.model_name:id, e.g. documents.document:12).'
+        )
+        sub.add_argument('targets', nargs='+')
+        subparsers.add_parser(
+            'rate-limit-boundary',
+            help=(
+                'Runs the sign-in rate limiter with a fixed clock around a '
+                'calendar-minute boundary and reports each decision.'
+            )
+        )
 
         sub = subparsers.add_parser(
             'find-label',
@@ -426,3 +457,148 @@ class Command(BaseCommand):
                 } for document in documents
             ]
         }
+
+    def do_rate_limit_boundary(self, options):
+        """
+        The production limiter (LoginUsernameRateThrottle) with a fixed
+        clock: 10 sign-in requests per username per calendar minute of the
+        server clock. Uses synthetic usernames and times in the year 2000,
+        so no real window is touched; its rows are removed afterwards.
+        """
+        import datetime
+        import hashlib
+        import uuid
+        from unittest import mock
+
+        from rest_framework.parsers import JSONParser
+        from rest_framework.request import Request
+        from rest_framework.test import APIRequestFactory
+
+        from ...models import LoginRateWindow
+        from ...passwords import LoginUsernameRateThrottle
+
+        factory = APIRequestFactory()
+        names = []
+
+        def attempt(username, at):
+            request = Request(
+                factory.post('/', {'username': username}, format='json'),
+                parsers=[JSONParser()]
+            )
+            throttle = LoginUsernameRateThrottle()
+            with mock.patch('django.utils.timezone.now', return_value=at):
+                allowed = throttle.allow_request(request=request, view=None)
+            return {'allowed': allowed, 'at': at.strftime('%H:%M:%S.%f')[:-3], 'wait': throttle.wait()}
+
+        def at(minute, second, millisecond=0):
+            return datetime.datetime(
+                2000, 1, 1, 12, minute, second, millisecond * 1000,
+                tzinfo=datetime.timezone.utc
+            )
+
+        def user():
+            name = 'boundary-check-{}'.format(uuid.uuid4().hex)
+            names.append(name)
+            return name
+
+        try:
+            # 1. Ten requests spread over one minute pass; the eleventh in
+            #    its last millisecond is refused (wait: 1 s); the first
+            #    request of the next minute passes again.
+            first = user()
+            within = [attempt(first, at(0, second)) for second in range(0, 60, 6)]
+            eleventh = attempt(first, at(0, 59, 999))
+            next_minute = attempt(first, at(1, 0, 0))
+            # 2. A burst across the boundary: 10 in the last second of one
+            #    minute and 10 in the first second of the next all pass
+            #    (fixed calendar-minute windows); the 11th of the new
+            #    minute is refused.
+            second = user()
+            before = [attempt(second, at(5, 59, 500 + i)) for i in range(10)]
+            after = [attempt(second, at(6, 0, i)) for i in range(10)]
+            refused = attempt(second, at(6, 0, 500))
+        finally:
+            LoginRateWindow.objects.filter(
+                key__in=[hashlib.sha256(name.encode('utf-8')).hexdigest() for name in names]
+            ).delete()
+        return {
+            'within_minute': within, 'eleventh': eleventh,
+            'next_minute': next_minute, 'burst_before': before,
+            'burst_after': after, 'burst_eleventh': refused
+        }
+
+    def do_index_task_check(self, options):
+        """
+        Eager run of task_index_instance: retries happen synchronously, so
+        a target that keeps failing ends as FAILURE after Mayan's maximum
+        number of retries, and a skipped one ends as SUCCESS at once.
+        """
+        import time
+
+        from mayan.celery import app as celery_app
+
+        from ...models import DeletedObject
+
+        task = celery_app.tasks['mayan.apps.dynamic_search.tasks.task_index_instance']
+        kwargs = {
+            'app_label': options['app_label'], 'model_name': options['model_name'],
+            'object_id': options['object_id']
+        }
+        from celery.exceptions import Retry
+
+        started = time.monotonic()
+        try:
+            result = task.apply(kwargs=kwargs, throw=False)
+            state = result.state
+            error = type(result.result).__name__ if result.failed() else None
+        except Retry as exception:
+            # Eager retries run nested; Celery raises Retry from them. This
+            # is what a worker would do: schedule another attempt.
+            state = 'RETRY'
+            error = type(exception.exc).__name__ if exception.exc else None
+        return {
+            'state': state,
+            'error': error,
+            'seconds': round(time.monotonic() - started, 2),
+            'tombstone': DeletedObject.objects.filter(
+                app_label=options['app_label'], model_name=options['model_name'],
+                object_id=options['object_id']
+            ).exists(),
+            'wrapped': hasattr(type(task).run, '__wrapped__')
+        }
+
+    def do_search_raw(self, options):
+        from mayan.apps.dynamic_search.search_backends import SearchBackend
+        from mayan.apps.dynamic_search.search_interpreters import SearchInterpreter
+        from mayan.apps.dynamic_search.search_models import SearchModel
+
+        search_model = SearchModel.get(name='documents.documentsearchresult')
+        interpreter = SearchInterpreter.init(
+            query={'q': options['query']}, search_model=search_model
+        )
+        ids = interpreter.do_resolve(search_backend=SearchBackend.get_instance())
+        return {'ids': sorted(int(pk) for pk in ids)}
+
+    def do_index_tasks_for(self, options):
+        """Read-only look at the dev broker's search queue and held tasks."""
+        import base64
+
+        from mayan.celery import app as celery_app
+
+        wanted = set(options['targets'])
+        with celery_app.connection_for_read() as connection:
+            client = connection.default_channel.client
+            messages = [('queued', json.loads(raw)) for raw in client.lrange('search', 0, -1)]
+            for raw in client.hvals('unacked'):
+                message, exchange, routing_key = json.loads(raw)
+                if routing_key == 'search':
+                    messages.append(('held', message))
+        found = []
+        for where, message in messages:
+            if not message.get('headers', {}).get('task', '').endswith('task_index_instance'):
+                continue
+            kwargs = json.loads(base64.b64decode(message['body']))[1]
+            target = '{}.{}:{}'.format(kwargs.get('app_label'), kwargs.get('model_name'), kwargs.get('object_id'))
+            if target in wanted:
+                found.append({'where': where, 'retries': message['headers'].get('retries', 0), 'target': target})
+        return {'tasks': found, 'count': len(found)}

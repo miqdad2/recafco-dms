@@ -90,6 +90,20 @@ class Command(BaseCommand):
         sub.add_argument('--seed', type=int, default=1)
         subparsers.add_parser('status')
         subparsers.add_parser('purge-uploads')
+        sub = subparsers.add_parser(
+            'deletion-sample',
+            help='Creates COUNT general documents titled "PREFIX nnnn" whose '
+            'file contains the word PREFIXbody (lower case).'
+        )
+        sub.add_argument('--count', type=int, required=True)
+        sub.add_argument('--prefix', required=True)
+        sub = subparsers.add_parser(
+            'purge-prefix',
+            help='Moves documents titled "PREFIX ..." to the recycle bin and '
+            'deletes them permanently, as an administrator does (the '
+            'production trash_document and purge_document path).'
+        )
+        sub.add_argument('--prefix', required=True)
         subparsers.add_parser(
             'missing-objects',
             help='Reads [[app_label, model_name, id], ...] as JSON on stdin; '
@@ -173,6 +187,49 @@ class Command(BaseCommand):
             'seconds': round(time.monotonic() - started, 1),
             'synthetic_total': start + options['count']
         }
+
+    # ------------------------------------------- deletion-sample / purge
+
+    def _check_prefix(self, prefix):
+        if not prefix.isalnum() or prefix.upper() in ('LT', 'LTUP'):
+            raise CommandError('Use a new alphanumeric prefix (not LT or LTUP).')
+        return prefix
+
+    def do_deletion_sample(self, options):
+        prefix = self._check_prefix(options['prefix'])
+        employee = get_user_model().objects.filter(username__startswith=PREFIX).order_by('pk').first()
+        if employee is None:
+            raise CommandError('Run "users" first.')
+        department = Department.objects.filter(is_active=True).order_by('pk').first()
+        category = Category.objects.filter(is_active=True).order_by('pk').first()
+        ids = []
+        for index in range(1, options['count'] + 1):
+            label = '{} {:04d}'.format(prefix, index)
+            upload = create_document(
+                category=category.name, department=department.name,
+                document_type=get_document_type_general(), label=label,
+                uploaded_file=SimpleUploadedFile(
+                    content=make_pdf(text='{} {}body'.format(label, prefix.lower())),
+                    content_type='application/pdf', name='{}.pdf'.format(label.replace(' ', '_'))
+                ),
+                user=employee
+            )
+            ids.append(upload.document.pk)
+        return {'document_ids': ids}
+
+    def do_purge_prefix(self, options):
+        from ...admin_operations import purge_document, trash_document
+
+        prefix = self._check_prefix(options['prefix'])
+        admin = get_user_model().objects.get(username='dev_admin')
+        started = time.monotonic()
+        ids = []
+        for document in Document.objects.filter(label__startswith=prefix + ' '):
+            trash_document(actor=admin, document=document, reason='deletion measurement')
+            document = Document.objects.get(pk=document.pk)
+            purge_document(actor=admin, document=document, reason='deletion measurement')
+            ids.append(document.pk)
+        return {'purged_ids': ids, 'seconds': round(time.monotonic() - started, 2)}
 
     # ----------------------------------------------------- purge-uploads
 

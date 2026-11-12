@@ -27,3 +27,8 @@ class RecafcoDmsApp(MayanAppConfig):
             model=DocumentType,
             permissions=(permission_portal_document_upload,)
         )
+
+        # End Mayan's search-index retries for permanently deleted objects
+        # (see search_cleanup.py). Mayan's code is not changed.
+        from .search_cleanup import install as install_search_cleanup
+        install_search_cleanup()
