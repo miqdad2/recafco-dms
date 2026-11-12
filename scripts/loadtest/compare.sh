@@ -6,7 +6,10 @@
 # Needs: the portal production build on 127.0.0.1:3107, the dev Mayan up.
 set -e
 export MSYS_NO_PATHCONV=1
-phase="${1:?usage: compare.sh <phase>}"
+phase="${1:?usage: compare.sh <phase> <code-ref>}"
+# The commit whose extension and portal source is checked out (verified by
+# run.mjs). The portal build must have been made from the same source.
+ref="${2:?usage: compare.sh <phase> <code-ref>}"
 here="$(dirname "$0")"
 state="$here/.state"
 stamp="$(date +%Y-%m-%dT%H-%M-%S)"
@@ -20,9 +23,9 @@ for user in lt_emp_001 dev_admin; do
   echo "query probe: $out"
 done
 
-node "$here/run.mjs" --label "$phase-search" --mix search --stages 1,5,10 --stage-seconds 45 --login-burst 10 --seed 1
+node "$here/run.mjs" --label "$phase-search" --mix search --stages 1,5,10 --stage-seconds 45 --login-burst 10 --seed 1 --code-ref "$ref"
 sh "$here/prepare.sh"
-node "$here/run.mjs" --label "$phase-read" --mix read --stages 1,10,20 --stage-seconds 60 --login-burst 20 --seed 1
+node "$here/run.mjs" --label "$phase-read" --mix read --stages 1,10,20 --stage-seconds 60 --login-burst 20 --seed 1 --code-ref "$ref"
 sh "$here/prepare.sh"
-node "$here/run.mjs" --label "$phase-mixed" --mix mixed --stages 1,5,10,20,40 --stage-seconds 60 --login-burst 20 --seed 1
+node "$here/run.mjs" --label "$phase-mixed" --mix mixed --stages 1,5,10,20,40 --stage-seconds 60 --login-burst 20 --seed 1 --code-ref "$ref"
 echo "phase $phase done"

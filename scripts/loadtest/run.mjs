@@ -209,6 +209,16 @@ async function sampleResources(stage) {
 async function describeEnvironment() {
   const git = async (...a) => (await run('git', a, { cwd: join(here, '..', '..') })).stdout.trim();
   const env = { commit: await git('rev-parse', '--short', 'HEAD'), dirty: (await git('status', '--porcelain', '--', 'portal', 'mayan-extensions')) !== '' };
+  // --code-ref <commit>: the extension and portal source in the working tree
+  // must be exactly that commit's (checked, not assumed).
+  if (args['code-ref']) {
+    try {
+      await git('diff', '--quiet', args['code-ref'], '--', 'mayan-extensions/recafco_dms', 'portal/src');
+    } catch {
+      throw new Error(`Source differs from ${args['code-ref']}; refusing to label the run with it.`);
+    }
+    env.codeRef = await git('rev-parse', '--short', args['code-ref']);
+  }
   const dockerExec = (cmd) => run('docker', ['exec', 'recafco-dms-dev-app-1', 'sh', '-c', cmd], { env: { ...process.env, MSYS_NO_PATHCONV: '1' } });
   try {
     const { stdout } = await dockerExec('cat /proc/1/environ | tr "\\0" "\\n" | grep -E "^MAYAN_(GUNICORN_WORKERS|GUNICORN_MAX_REQUESTS|GUNICORN_REQUESTS_JITTER|WORKER_[A-F]_CONCURRENCY)="');

@@ -15,7 +15,7 @@ for (const file of process.argv.slice(2)) {
   console.log(`\n### ${r.label} (mix: ${r.mix}, think time ${r.thinkMs} ms, ${r.stageSeconds} s per stage)\n`);
   const e = r.environment;
   if (e) {
-    console.log(`Code ${e.commit}${e.dirty ? ' + uncommitted changes' : ''}; seed ${r.seed}; Mayan ${e.mayan?.gunicornWorkers} web workers, ${e.mayan?.memLimitMiB} MiB; dataset ${e.dataset?.documents} documents (${e.dataset?.documents_waiting_for_pages} waiting for pages); original Mayan running: ${e.originalMayanRunning?.length ? e.originalMayanRunning.join(', ') : 'no'}.`);
+    console.log(`Code ${e.codeRef ? `${e.codeRef} (verified: extension and portal source)` : `${e.commit}${e.dirty ? ' + uncommitted changes' : ''}`}; seed ${r.seed}; Mayan ${e.mayan?.gunicornWorkers} web workers, ${e.mayan?.memLimitMiB} MiB; dataset ${e.dataset?.documents} documents (${e.dataset?.documents_waiting_for_pages} waiting for pages); original Mayan running: ${e.originalMayanRunning?.length ? e.originalMayanRunning.join(', ') : 'no'}.`);
   }
   console.log(`Login burst: ${r.loginBurst.size} sign-ins at once, p50 ${r.loginBurst.p50} ms, p95 ${r.loginBurst.p95} ms, errors ${r.loginBurst.errors}.`);
   console.log(`Leak checks: ${r.leakCount} found; administrator received confidential documents in ${r.confidentialControl?.withConfidential}/${r.confidentialControl?.requests} concurrent responses.\n`);
