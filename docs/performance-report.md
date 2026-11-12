@@ -1,8 +1,10 @@
 # Performance assessment — portal ↔ Mayan integration (2026-11-12)
 
 Branch `perf-assessment`. Isolated development stack only (`recafco-dms-dev`,
-port 8091). Nothing was deployed, no architecture was changed, and no
-application code was changed. The company server was not used.
+port 8091). Nothing was deployed and no architecture was changed. The
+company server was not used. The assessment itself changed no application
+code; fixes 1 and 4 were implemented afterwards and are measured in
+**"Optimizations: before and after"** at the end of this report.
 
 Before measuring, Docker Desktop had to be started; with your approval the
 original Mayan (project `mayan`) was then stopped with `docker stop` (no
@@ -13,10 +15,10 @@ configuration change, volumes kept). It was started again by someone else at
 
 | # | Bottleneck (measured) | Effect | Targeted fix |
 | --- | --- | --- | --- |
-| 1 | **Search**: the portal calls Mayan's search API (264 SQL queries, ~670 ms, most of it Python building preview data the portal discards), then a second call for summaries (63 queries) | Search is 1.0–1.4 s for one user; the system manages ~2.5 searches/s; in the mixed workload search is ~25 % of requests but most of the CPU | One extension endpoint that runs the same ACL-restricted Mayan search (`search_document_queryset`, already used by department search) and returns summaries in one call |
+| 1 (done) | **Search**: the portal calls Mayan's search API (264 SQL queries, ~670 ms, most of it Python building preview data the portal discards), then a second call for summaries (63 queries) | Search is 1.0–1.4 s for one user; the system manages ~2.5 searches/s; in the mixed workload search is ~25 % of requests but most of the CPU | One extension endpoint that runs the same ACL-restricted Mayan search (`search_document_queryset`, already used by department search) and returns summaries in one call |
 | 2 | **Gunicorn workers recycle together**: every ~500 requests (jitter ±50); evenly loaded workers reach it together and both restart | Every request stalled for ~30 s (measured twice); also the cause of the "other side closed" errors handled in Unit 5 | `MAYAN_GUNICORN_MAX_REQUESTS` higher with wide jitter, ≥3 workers (tested: no restarts, no stalls) |
 | 3 | **Mayan memory ceiling**: ~13 Python processes of 200–300 MB in a 2.5 GiB container | The cgroup hit its limit 9,018 times in one 5-minute run; latency became erratic (1 user: 0.9 req/s instead of 2.6) | Give the Mayan container ≥4–6 GiB, or fewer worker processes; check on the server before go-live |
-| 4 | **Listing N+1**: `serialize_document` runs ~3 queries per document (page count, page IDs, "has pages") | A 20-row list = 65 queries (search summaries 63) | Annotate page count/state in the list query; read page IDs only on the document page |
+| 4 (done) | **Listing N+1**: `serialize_document` runs ~3 queries per document (page count, page IDs, "has pages") | A 20-row list = 65 queries (search summaries 63) | Annotate page count/state in the list query; read page IDs only on the document page |
 | 5 | **Processing throughput**: OCR one page at a time; OCR and text extraction both run on every PDF, including PDFs that already contain text; file processing shares one consumer with ~16 search-index and event tasks per document | 1,900 documents took 45 min to process (~35 docs/min page detection at dev settings, ~121 with 3 file workers; OCR 16 → 26 pages/min) | More worker concurrency where CPU allows; schedule bulk imports off-hours; whether to skip OCR for born-digital PDFs is a RECAFCO decision |
 | 6 | **Sign-in cost**: PBKDF2 1,000,000 iterations = 0.56 s CPU per sign-in, blocking a worker | 20 simultaneous sign-ins: p95 2.7–4.5 s | Keep the hashing strength; long portal sessions make sign-ins rare. More workers spread bursts |
 
@@ -65,10 +67,10 @@ test with a realistic count before sizing the server.
 
 **What a "VU" is.** A virtual user (VU) is one closed request loop with
 **no think time**: as soon as a response has fully arrived, the next request
-starts. 10 VUs = 10 requests in flight continuously. A person reading
-documents makes roughly one request every 20–60 s, so one VU represents
-roughly 20–60 active people, and 1,000 accounts are not 1,000 VUs (most
-accounts are idle at any moment). See "Capacity estimate".
+starts. 10 VUs = 10 requests in flight continuously. A VU is not an
+employee, and 1,000 accounts are not 1,000 VUs. How VUs relate to employees
+depends on how often employees actually make requests, which has not been
+measured (see "Capacity").
 
 **Workloads.** Each VU uses its own account and portal session, signed in
 through the real login form. Every request is timed to the last byte.
@@ -308,16 +310,17 @@ clients were not simulated.
 
 After 1 and 2, rerun `run.mjs` with the same dataset to verify.
 
-## Capacity estimate (not a measurement)
+## Capacity
 
-On this laptop, with the tuned profile, the mixed workload stays at p95 ≈
-3.3 s with 5 VUs (5.2 req/s) and the read-only workload at p95 < 1 s with 10
-VUs (23.6 req/s). If an active employee makes one request every 30 s on
-average, 5.2 req/s corresponds to roughly **150 people actively working at
-the same moment** with today's search cost, or several hundred for
-browsing only. How many of 1,000 accounts are active at once is unknown; ask
-RECAFCO for peak usage instead of assuming. The server's CPU count, the real
-document volume and fix 1 will change these numbers more than anything else.
+Measured on this laptop: request throughput and latency per number of VUs
+(tables above and in "Optimizations: before and after"). **No conversion to
+a number of employees is made.** An earlier version of this report converted
+5.2 req/s into "roughly 150 people" by assuming one request every 30 s per
+person. That assumption has no evidence behind it and was withdrawn.
+Converting needs measured usage: requests per active employee per minute
+and the number of employees active at the busiest time (for example from
+the portal's access logs during a pilot). The server's CPU count and the
+real document volume must be measured on the server itself.
 
 ## How to repeat
 
@@ -357,7 +360,9 @@ running (observed with `docker stats` only).
   synthetic accounts and documents, processing status, query probe. Refuses
   to run unless `RECAFCO_DEV_FIXTURES=1` (dev stack only), like `recafco_dev`.
 - `scripts/loadtest/run.mjs` (driver), `summarize.mjs` (tables),
-  `backlog.sh` (queue lengths), `setup-users.sh` (synthetic accounts).
+  `backlog.sh` (queues and held tasks), `setup-users.sh` (synthetic
+  accounts), `prepare.sh` (same dataset and empty queues before each run),
+  `drop-stale-search-tasks.mjs`, `compare.sh` (one before/after phase).
 - `deploy/dev/compose.loadtest-tuned.yaml`: tuned profile for comparison.
 - `.gitignore`: `scripts/loadtest/.state/` (password, results, logs).
 
@@ -365,9 +370,166 @@ running (observed with `docker stats` only).
 
 - The dev Mayan is back on the committed profile (2 workers, 2.5 GiB).
 - The dev stack keeps the 2,000 synthetic documents and 60 `lt_emp_*`
-  accounts (dev volumes only). The integration suite was **not** rerun
-  against this larger dataset; tests that wait for the search index will be
-  slower while any backlog is processing.
-- The portal process started for the test was stopped by its PID.
+  accounts (dev volumes only). The integration suite runs on the separate
+  test stack `recafco-dms-test` (port 8092, own volumes; stopped, volumes
+  kept), so the load-test data does not affect it.
+- Every portal process started for the tests was stopped by its own PID.
 - The original Mayan is running (started by someone else at 06:42:49 UTC);
-  it was not touched after that.
+  it was observed with `docker stats` only and not touched.
+
+## Optimizations: before and after (2026-11-12)
+
+Implemented in commit `31f33a0` (see `docs/decisions.md`):
+
+1. **Search in one call**: `recafco/search/` runs the same Mayan search
+   (`SearchBackend.search()` with the caller's ACLs and Mayan's results
+   limit), returns the same count and pages, ordered by title (ties by ID),
+   with summaries in the same response. The portal's search page makes one
+   Mayan call and fetches the department list in parallel.
+2. **No per-document page queries in lists**: page counts, first page IDs
+   and "file has pages" for a whole list in 2–3 queries (`PageInfo`). Used
+   by department lists, search, summaries, My uploads, favorites, recent
+   documents and the admin document list. The single-document view is
+   unchanged.
+
+Not changed: permissions, confidentiality, uploads, OCR policy, password
+hashing, Mayan worker and memory settings.
+
+### Query cost per call (exact counts; times from a single call)
+
+In-process probe (`recafco_loadtest queries`), employee `lt_emp_001`, same
+dataset, fresh Mayan processes, round 2. Query counts are deterministic.
+Times are one call each on a busy machine and indicative only.
+
+| Call | Queries before → after | Time before → after (ms) |
+| --- | --- | --- |
+| Department list, page 1 (20 rows) | 65 → 7 | 121 → 58 |
+| Department list, page 20 | 66 → 8 | 136 → 57 |
+| Department search ("invoice") | 67 → 9 | 418 → 522 |
+| Summaries for 20 IDs | 63 → 5 | 85 → 43 |
+| My uploads (50 rows) | 163 → 5 | 193 → 80 |
+| Company-wide search, 20 results | 264 + 63 in two calls → **9 in one call** | 818 + 85 → 899 (employee), 750 + 50 → 432 (administrator) |
+| Document page (single document) | 24 → 24 (unchanged) | 41 → 44 |
+
+Remaining search time is Mayan's Whoosh index lookup itself (SQL ~0.1 s of
+each call), not database queries. Department search went from 67 to 9
+queries, but its time is dominated by the same index lookup and varied
+between single calls.
+
+### Load test, round 2 (directly comparable)
+
+Same machine, dataset (2,686 documents, 34 still without pages in both),
+tuned dev profile (4 web workers, 6 GiB), seed, workload and procedure. The
+code was verified per run (`--code-ref`): before = `5c7b4d4`, after =
+`31f33a0`. Before every run, `prepare.sh` removed the previous run's
+uploads, restarted the dev Mayan app, and waited until queues **and** tasks
+held by workers were empty for 90 s. The original Mayan was running during
+both phases and was recorded, not changed. Each run starts from freshly
+started Mayan processes, so the 1-VU stage includes cold caches in both
+phases.
+
+| Workload | VUs | Before: req/s, p50 / p95 ms | After: req/s, p50 / p95 ms | Mayan CPU avg % before → after | Original Mayan CPU avg % before / after |
+| --- | --- | --- | --- | --- | --- |
+| Search only | 1 | 0.2, 2,748 / 10,083 | 1.0, 832 / 1,740 | 178 → 133 | 65 / 10 |
+| Search only | 5 | 1.0, 4,696 / 9,066 | 1.8, 2,338 / 5,547 | 295 → 313 | 36 / 29 |
+| Search only | 10 | 1.2, 7,603 / 15,804 | 1.8, 4,176 / 13,277 | 371 → 409 | 40 / 34 |
+| Read only | 1 | 1.3, 602 / 1,896 | 4.1, 182 / 605 | 151 → 111 | 106 / 45 |
+| Read only | 10 | 9.0, 831 / 2,781 | 9.1, 907 / 2,103 | 279 → 333 | 81 / 39 |
+| Read only | 20 | 6.7, 2,266 / 6,887 | 8.5, 1,920 / 5,122 | 345 → 321 | 88 / 61 |
+| Mixed | 1 | 1.0, 359 / 5,117 | 1.9, 261 / 1,443 | 244 → 199 | 51 / 23 |
+| Mixed | 5 | 2.0, 1,321 / 8,647 | 6.4, 506 / 2,049 | 466 → 454 | 50 / 24 |
+| Mixed | 10 | 1.4, 4,529 / 19,438 | 3.9, 1,583 / 6,703 | 547 → 551 | 59 / 45 |
+| Mixed | 20 | 1.9, 5,798 / 28,188 | 3.2, 4,778 / 15,511 | 596 → 575 | 55 / 36 |
+| Mixed | 40 | 1.9, 9,765 / 62,007 | 3.3, 9,180 / 31,745 | 610 → 577 | 51 / 52 |
+
+Company-wide search inside the mixed workload, p50 / p95 ms: 1 VU 5,117 /
+11,055 → 907 / 2,965; 5 VUs 5,222 / 13,125 → 1,276 / 3,010; 10 VUs 17,683 /
+21,008 → 3,960 / 7,154; 40 VUs 54,626 / 69,755 → 12,414 / 25,804.
+
+Errors: 0 in every run of both phases. Leak checks: 0 in every run; the
+administrator received confidential documents in all concurrent control
+responses (before 54 + 33 + 49, after 64 + 99 + 153). Memory: Mayan peak
+2.6–3.3 GiB in both phases; portal ≤ 0.55 GiB. Processing backlog during the
+runs: at most 82 tasks (uploads of the mixed workload) in either phase.
+Sign-in bursts: 20 at once, p95 7.7–9.8 s before and 3.9–7.7 s after.
+Hashing is unchanged, so this difference is noise and load, not an
+improvement.
+
+**How much of this is noise.** The same code (`5c7b4d4`) was measured twice
+with the same procedure, apart from prepare.sh being improved between the
+two rounds (round 1 and round 2 "before"). It differed by up to ~35 % in
+throughput (mixed 10 VUs 1.9 vs 1.4 req/s; read 10 VUs 13.8 vs 9.0 req/s),
+with the original Mayan using 15–106 % CPU on average and spiking to
+~330 %. So only large differences are meaningful:
+
+- **Search: clearly faster.** About 3× lower median at 1 VU (cold) and in
+  the mixed workload, ~2× at 5–10 VUs in the search-only workload, and
+  higher throughput of search requests (company-wide and department, 1.2 →
+  1.8 per second at 10 VUs).
+- **Mixed workload: clearly better.** 2–3× throughput at 5–10 VUs and
+  roughly half the p95 latency at every level, mainly because search costs
+  less CPU.
+- **Read-only browsing: no measurable change at load** (9.0 vs 9.1 req/s at
+  10 VUs, within noise), although each list now costs 7 instead of 65
+  queries and about half the time in the probe. At this dataset size,
+  database queries were not what limited browsing. The 1-VU read row
+  (1.3 → 4.1 req/s) is mostly cold-start variance.
+
+### Runs that are not comparable (kept, not used above)
+
+| Run (result file prefix) | Why not comparable |
+| --- | --- |
+| `result-after-*` (round 1 "after", 08:36–08:48 UTC) | **Contaminated.** prepare.sh had deleted the previous run's uploads; Mayan kept retrying index tasks for those deleted objects (up to 40 retries, 60 s back-off), held by workers outside the queues where the backlog counter did not see them. The search queue grew to ~3,200 tasks during the runs, with ~3,000 more held. |
+| `result-before-*` (round 1 "before") | Clean except the first search stage (up to 70 queued tasks left from an earlier purge). Its backlog column also did not count held tasks. Used only for the noise estimate. |
+| Assessment runs before 2026-11-12 10:30 UTC | Different procedure (no dataset reset, no worker restart, unseeded workload). Two result files were overwritten before unique names existed. |
+| Every run | The original Mayan was running from 06:42:49 UTC and used CPU (recorded per stage in each result). |
+
+### Regression tests
+
+`portal/tests/integration/12-search-and-lists.test.ts` (new) checks:
+- the new endpoint against the previous two-call path for an employee, a
+  confidential-group member and an administrator: same count, same
+  documents and identical summaries;
+- title order with ties by ID; pages of 10 cover each result once; 404 past
+  the last page (same as Mayan); empty results; page size capped at 50;
+  anonymous refused;
+- confidential isolation: a word that occurs only inside a confidential
+  file finds nothing for other employees, the confidential title is neither
+  listed nor counted, group members find it by title and by file text, and
+  responses contain no file text (the portal shows no excerpts, so there
+  is no excerpt to leak);
+- the portal search page shows the same counts, and "Show more results"
+  pages through the results;
+- department list, search results, My uploads, favorites and the admin list
+  report the same pages and state as the single-document view.
+
+Full suite on the separate test stack (fresh database, no load-test data):
+**222 of 223 passed**. The failing test, "limits rapid sign-in requests per
+username, not per address" (09), also failed in an earlier full run and
+passed when its file was run alone. The limiter counts per calendar minute
+(`window_start` = current minute), so the test's 11 sign-ins fail it
+whenever they cross a minute boundary. This happened more often here
+because each sign-in took 0.7–2 s on the busy machine. Search, lists and
+sign-in code are separate, and the test was not changed. The new tests and
+08, 09 and 12 together passed 36/36 in a separate run.
+
+### Remaining deployment constraints
+
+- Nothing is deployed. The extension change needs Mayan's app processes on
+  the server to restart (after approval), and the portal needs a rebuild.
+  No migration is needed (no model changes).
+- Worker counts, worker recycling (`MAYAN_GUNICORN_MAX_REQUESTS`) and memory
+  limits are **not** approved production configuration. The measured
+  simultaneous-recycling stall and memory ceiling still apply to any
+  server running the defaults; they need measurement on the server.
+- OCR policy is unchanged. Skipping OCR for text PDFs needs an evaluation
+  of search completeness with real text-only and mixed scanned/text PDFs.
+- Permanent deletion has a processing cost: deleting one document queued
+  ~20 index tasks (document, files, versions, pages), and Mayan retries each
+  task for a deleted object up to 40 times with back-off up to 60 s (~35
+  minutes). Measured: 280 deleted documents left 11,195 queued tasks. Expect
+  extra search-worker CPU after large purges from the recycle bin.
+- Search time is now mostly Mayan's Whoosh lookup. Larger document volumes
+  should be measured before deciding whether a different search backend
+  (Mayan supports Elasticsearch) is needed.
+- No employee-count capacity figure is given (see "Capacity").

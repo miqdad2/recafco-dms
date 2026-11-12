@@ -257,3 +257,20 @@ Next unit: not started. Waiting for review.
   Gunicorn worker recycling (~30 s stalls), Mayan memory ceiling at 2.5 GiB,
   listing N+1 (~3 queries per document), OCR throughput, sign-in hashing.
   Targeted fixes listed in the report; none implemented yet.
+
+## Search and list-query optimizations (2026-11-12) — done, awaiting review
+
+- `recafco/search/`: Mayan's own search in one call with summaries (same
+  results, count, title order, pages, permission checks). Lists build page
+  facts per list (`PageInfo`), not per document. Commit `31f33a0`.
+- Query counts: department list 65 → 7, summaries 63 → 5, My uploads (50)
+  163 → 5, company-wide search 264 + 63 (two calls) → 9 (one call).
+- Directly comparable load test (round 2, same dataset, settings, seed and
+  procedure): company-wide search ~2–3× faster at the median, mixed workload
+  2–3× throughput at 5–10 VUs; read-only browsing unchanged within noise.
+  0 errors, 0 leaks. A contaminated round-1 "after" phase is kept and marked.
+- New regression tests `12-search-and-lists`; full suite on a separate test
+  stack 222/223 (the failure is a timing-dependent rate-limit test, 09,
+  unrelated to these changes; it passes alone).
+- Not changed: worker/memory settings (dev experiment only), OCR policy,
+  password hashing. Not deployed.
