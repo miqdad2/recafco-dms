@@ -292,3 +292,15 @@ Next unit: not started. Waiting for review.
   tombstone are still retried. Mayan's code unchanged.
 - Verification: typecheck, lint, build clean; unit 13/13; complete
   integration suite on the separate test stack 228/228.
+
+## Dev backend reachable for the manager demonstration (2026-11-12)
+
+- `deploy/dev/compose.yaml`: `MAYAN_ALLOWED_HOSTS` now comes from
+  `RECAFCO_DEV_ALLOWED_HOSTS` (default unchanged: localhost, 127.0.0.1).
+  The demonstration value (adds the laptop's LAN address, no wildcard) is
+  only in the git-ignored `deploy/dev/.env`; `.env.example` documents the key.
+- Only the `recafco-dms-dev` app container was recreated (`--no-deps`);
+  database, Redis, volumes and the original Mayan were not restarted.
+- Verified: local API 200; Host `192.168.1.214:8093` 200 (direct and through
+  the laptop's port proxy); unlisted hosts still 400; RECAFCO sign-in,
+  departments and search work through the LAN address.

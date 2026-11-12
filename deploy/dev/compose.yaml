@@ -57,7 +57,10 @@ services:
         condition: service_healthy
     environment:
       DJANGO_SETTINGS_MODULE: mayan.settings.production
-      MAYAN_ALLOWED_HOSTS: "['localhost', '127.0.0.1']"
+      # Host names Django accepts (no wildcard). A machine-specific list,
+      # e.g. a LAN address for a demonstration, goes in deploy/dev/.env as
+      # RECAFCO_DEV_ALLOWED_HOSTS (git ignored); default: local only.
+      MAYAN_ALLOWED_HOSTS: "${RECAFCO_DEV_ALLOWED_HOSTS:-['localhost', '127.0.0.1']}"
       MAYAN_CELERY_BROKER_URL: redis://:${RECAFCO_DEV_REDIS_PASSWORD}@redis:6379/0
       MAYAN_CELERY_RESULT_BACKEND: redis://:${RECAFCO_DEV_REDIS_PASSWORD}@redis:6379/1
       MAYAN_COMMON_EXTRA_APPS: "['recafco_dms.apps.RecafcoDmsApp']"
