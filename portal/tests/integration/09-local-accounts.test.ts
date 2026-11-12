@@ -16,7 +16,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DENIED, DEPARTMENTS, MAYAN, MAYAN_WEB, RUN, api, basicApi, dev, extensionUpload, json, makePdf, mayanWebGet,
-  mayanWebLogin, portalAction, portalGet, portalLoginAs, portalLogout, tokenFor, users, type PortalSession,
+  mayanWebLogin, portalAction, portalGet, portalLoginAs, portalLogout, sleep, tokenFor, users, type PortalSession,
 } from './helpers';
 
 type Created = { id: number; username: string };
@@ -30,7 +30,38 @@ async function signIn(username: string, password: string) {
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
   });
-  return { status: response.status, body: (await response.json()) as any };
+  return {
+    status: response.status,
+    body: (await response.json()) as any,
+    // Mayan's clock (whole seconds) when it answered.
+    serverTime: Date.parse(response.headers.get('date') ?? ''),
+    retryAfter: response.headers.get('retry-after'),
+  };
+}
+
+/** Mayan's current time, from the Date header of a cheap request. */
+async function serverTime(): Promise<number> {
+  const response = await fetch(`${MAYAN}/`, { redirect: 'manual' });
+  await response.arrayBuffer();
+  const value = Date.parse(response.headers.get('date') ?? '');
+  if (Number.isNaN(value)) throw new Error('Mayan sent no Date header.');
+  return value;
+}
+
+const minuteOf = (time: number) => Math.floor(time / 60_000);
+
+/**
+ * Waits until Mayan's clock enters the next calendar minute. The sign-in
+ * limiter counts per calendar minute of the server clock, so a test that
+ * starts here has (almost) a whole fresh window.
+ */
+async function waitForNextServerMinute(): Promise<number> {
+  const current = minuteOf(await serverTime());
+  for (;;) {
+    const now = await serverTime();
+    if (minuteOf(now) > current) return now;
+    await sleep(250);
+  }
 }
 
 async function createUser(username: string, password: string, extra: Record<string, unknown> = {}): Promise<Created> {
@@ -322,12 +353,42 @@ describe('sign-in lockout per username', () => {
   });
 
   it('limits rapid sign-in requests per username, not per address', async () => {
-    // A correct password each time: no lockout, only the rate limit (10 per minute).
+    // A correct password each time: no lockout, only the rate limit (10 per
+    // username per calendar minute of Mayan's clock). Creating the account
+    // signs in once; starting in a fresh minute keeps that sign-in, and any
+    // minute boundary, out of the counted window.
     const user = await activeUser('Rate', 'rate123');
-    const statuses: number[] = [];
-    for (let attempt = 0; attempt < 11; attempt += 1) statuses.push((await signIn(user.username, 'rate123')).status);
-    expect(statuses.slice(0, 9).every((status) => status === 200)).toBe(true);
-    expect(statuses[10]).toBe(429);
+    await waitForNextServerMinute();
+    const attempts = [];
+    for (let attempt = 0; attempt < 11; attempt += 1) attempts.push(await signIn(user.username, 'rate123'));
+    // Precondition, not a retry: all 11 answers carry the same server minute.
+    // If this fails, the machine took more than a minute for 11 sign-ins.
+    expect(new Set(attempts.map((a) => minuteOf(a.serverTime))).size, 'all 11 sign-ins in one server minute').toBe(1);
+    expect(attempts.slice(0, 10).map((a) => a.status)).toEqual(Array(10).fill(200));
+    expect(attempts[10].status).toBe(429);
+    const retryAfter = Number(attempts[10].retryAfter);
+    expect(retryAfter).toBeGreaterThanOrEqual(1);
+    expect(retryAfter).toBeLessThanOrEqual(60);
+    // Other usernames from the same address are not limited.
     expect((await signIn('dev_employee_b', users.b.password)).status).toBe(200);
+    // The boundary: the next calendar minute is a new window.
+    await waitForNextServerMinute();
+    expect((await signIn(user.username, 'rate123')).status).toBe(200);
+  });
+
+  it('counts sign-ins per calendar minute: the boundary, with a fixed clock', () => {
+    type Decision = { allowed: boolean; at: string; wait: number | null };
+    const result = dev<Record<string, Decision | Decision[]>>('rate-limit-boundary');
+    const within = result.within_minute as Decision[];
+    expect(within.map((d) => d.allowed)).toEqual(Array(10).fill(true));
+    // 11th request in the last millisecond of the minute: refused, 1 s to wait.
+    expect(result.eleventh).toEqual({ allowed: false, at: '12:00:59.999', wait: 1 });
+    // First millisecond of the next minute: a new window.
+    expect(result.next_minute).toEqual({ allowed: true, at: '12:01:00.000', wait: null });
+    // Fixed windows: 10 just before and 10 just after a boundary all pass;
+    // the 11th of the new minute is refused until the minute ends.
+    expect((result.burst_before as Decision[]).every((d) => d.allowed)).toBe(true);
+    expect((result.burst_after as Decision[]).every((d) => d.allowed)).toBe(true);
+    expect(result.burst_eleventh).toEqual({ allowed: false, at: '12:06:00.500', wait: 60 });
   });
 });
