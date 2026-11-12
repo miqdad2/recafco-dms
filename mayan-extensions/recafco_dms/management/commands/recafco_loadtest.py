@@ -90,6 +90,11 @@ class Command(BaseCommand):
         sub.add_argument('--seed', type=int, default=1)
         subparsers.add_parser('status')
         subparsers.add_parser('purge-uploads')
+        subparsers.add_parser(
+            'missing-objects',
+            help='Reads [[app_label, model_name, id], ...] as JSON on stdin; '
+            'prints the entries whose object no longer exists.'
+        )
         sub = subparsers.add_parser('queries')
         sub.add_argument('--username', required=True)
 
@@ -177,6 +182,24 @@ class Command(BaseCommand):
             document.delete(to_trash=False)
             removed += 1
         return {'removed': removed}
+
+    # --------------------------------------------------- missing-objects
+
+    def do_missing_objects(self, options):
+        import sys
+
+        from django.apps import apps
+
+        wanted = {}
+        for app_label, model_name, object_id in json.load(sys.stdin):
+            wanted.setdefault((app_label, model_name), set()).add(int(object_id))
+        missing = []
+        for (app_label, model_name), ids in wanted.items():
+            model = apps.get_model(app_label=app_label, model_name=model_name)
+            manager = getattr(model, '_base_manager', model.objects)
+            existing = set(manager.filter(pk__in=ids).values_list('pk', flat=True))
+            missing.extend([app_label, model_name, pk] for pk in sorted(ids - existing))
+        return {'missing': missing}
 
     # ------------------------------------------------------------ status
 

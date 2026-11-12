@@ -11,6 +11,9 @@ mayan() {
   docker exec -u mayan recafco-dms-dev-app-1 /opt/mayan-edms/bin/mayan-edms.py recafco_loadtest "$@" 2>/dev/null | tail -1
 }
 echo "purge: $(mayan purge-uploads)"
+# Mayan queues ~20 search-index tasks per deleted document; drop the ones
+# whose object is gone (see drop-stale-search-tasks.mjs).
+node "$here/drop-stale-search-tasks.mjs"
 while true; do
   backlog="$(sh "$here/backlog.sh")"
   total=0
