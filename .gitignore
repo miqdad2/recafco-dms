@@ -37,3 +37,6 @@ backups/
 *.backup
 logs/
 *.log
+
+# Load test state (synthetic dev account password) and results
+scripts/loadtest/.state/

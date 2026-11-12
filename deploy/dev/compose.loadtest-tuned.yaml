@@ -1,0 +1,32 @@
+# LOAD TEST ONLY - "tuned" profile for the isolated dev stack.
+#
+# Compared against the normal dev profile (compose.yaml: 2 Gunicorn workers,
+# one Celery process per worker group, 2.5 GiB) to measure which settings
+# remove the bottlenecks found in docs/performance-report.md. Nothing here
+# changes code; these are Mayan's own environment settings.
+#
+#   docker compose --project-name recafco-dms-dev -f deploy/dev/compose.yaml \
+#     -f deploy/dev/compose.loadtest-tuned.yaml up -d app
+#
+# Return to the normal profile with the same command without the second -f.
+services:
+  app:
+    environment:
+      # Mayan image default is 3 workers. One per CPU core is a common start.
+      MAYAN_GUNICORN_WORKERS: "4"
+      # Default 500 (+-50 jitter): workers that share the load evenly reach
+      # the limit together and restart together, which stalled every request
+      # for ~30 s under load. Fewer, staggered restarts:
+      MAYAN_GUNICORN_MAX_REQUESTS: "5000"
+      MAYAN_GUNICORN_REQUESTS_JITTER: "2500"
+      # Worker B: file processing (documents_file) and event recording
+      # (events_fast) share one queue consumer; E: search indexing; D: OCR.
+      MAYAN_WORKER_A_CONCURRENCY: "1"
+      MAYAN_WORKER_B_CONCURRENCY: "3"
+      MAYAN_WORKER_C_CONCURRENCY: "1"
+      MAYAN_WORKER_D_CONCURRENCY: "2"
+      MAYAN_WORKER_E_CONCURRENCY: "2"
+    # ~13 Python processes of 200-300 MB each. At 2.5 GiB (dev) and 4 GiB
+    # the container ran at its ceiling and the kernel kept reclaiming memory
+    # (cgroup memory.events "max"), which made latency erratic.
+    mem_limit: 6144m

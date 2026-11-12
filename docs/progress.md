@@ -242,3 +242,18 @@ Remaining limitations
 - Tests, screenshots, gaps: docs/unit-5-report.md.
 
 Next unit: not started. Waiting for review.
+
+## Performance assessment (2026-11-12) — done, awaiting review
+
+- Branch `perf-assessment`. Dev stack only; no application code changed,
+  nothing deployed. Report: `docs/performance-report.md`.
+- Repeatable load test: `recafco_loadtest` (dev-only fixtures and query
+  probe), `scripts/loadtest/` (driver, summary, backlog, setup), tuned Mayan
+  profile `deploy/dev/compose.loadtest-tuned.yaml` for comparison.
+- Dataset 2,690 documents (2,000 synthetic), 60 synthetic employees.
+  Mixed workload on one 4-core laptop: ~5.5 req/s at saturation (tuned);
+  read-only ~25 req/s; search alone ~2.5/s. 0 errors, 0 cross-user leaks.
+- Measured bottlenecks: search (two calls, 264 + 63 queries), simultaneous
+  Gunicorn worker recycling (~30 s stalls), Mayan memory ceiling at 2.5 GiB,
+  listing N+1 (~3 queries per document), OCR throughput, sign-in hashing.
+  Targeted fixes listed in the report; none implemented yet.
