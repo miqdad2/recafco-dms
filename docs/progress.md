@@ -274,3 +274,21 @@ Next unit: not started. Waiting for review.
   unrelated to these changes; it passes alone).
 - Not changed: worker/memory settings (dev experiment only), OCR policy,
   password hashing. Not deployed.
+
+## Performance branch release checkpoint (2026-11-12) — done, awaiting review
+
+- Sign-in limit test made deterministic: starts in a fresh server minute
+  (Mayan's `Date` header), checks all 11 answers fall into it and the next
+  minute's reset; plus a fixed-clock boundary test of the real limiter.
+  Production limit unchanged (10 per username per calendar minute).
+- Stray `portal/portal/.next` (generated Turbopack output only) removed;
+  `turbopack.root`/`outputFileTracingRoot` pinned to the portal folder,
+  ESLint ignores `.next` at any depth.
+- Deletion backlog diagnosed: ~39 distinct index tasks per deleted
+  document, each retried while its target is missing (20 documents: 780
+  tasks, 5,252 attempts in 15 min, 812 pending). Fix in the extension
+  (tombstones, migration 0009, Celery `add_around` on Mayan's task):
+  each runs once, nothing pending after 17 s; missing objects without a
+  tombstone are still retried. Mayan's code unchanged.
+- Verification: typecheck, lint, build clean; unit 13/13; complete
+  integration suite on the separate test stack 228/228.

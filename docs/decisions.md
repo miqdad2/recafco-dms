@@ -220,3 +220,11 @@ Measured first (`docs/performance-report.md`); development only.
 | Worker counts, worker recycling and memory limits stay as they are. `deploy/dev/compose.loadtest-tuned.yaml` is a dev-only experiment. | Production configuration needs its own approval and measurement on the server. |
 | OCR policy unchanged. | Skipping OCR for PDFs that already contain text must first be evaluated for search completeness with real text-only and mixed scanned/text PDFs. |
 | Password hashing unchanged (PBKDF2, 1,000,000 iterations). | Sign-in cost is a capacity matter, not a reason to weaken hashing. |
+
+## Release checkpoint for the performance branch (2026-11-12)
+
+| Decision | Why |
+|---|---|
+| Permanently deleted documents and their parts (file, file page, version, version page, metadata entry) leave a tombstone (`DeletedObject`, migration 0009), written in the deletion's own transaction and kept for a day. Mayan's `task_index_instance` is wrapped with Celery's own `Task.add_around('run', …)` from the extension's `ready()`: when the target is missing **and** has a tombstone, the task ends without retrying; every other case runs Mayan's task unchanged. Mayan's code is not edited. | Mayan queues ~39 index tasks per deleted document and retries each one while its target is missing (up to 40 times). Measured: 20 deleted documents → 780 tasks, 5,252 attempts in 15 minutes, 812 still pending. After the fix: each runs once, nothing pending after 17 s. Missing objects without a tombstone (e.g. not committed yet) are still retried. |
+| The sign-in limit stays as agreed: 10 requests per username per calendar minute of the server clock (fixed windows; a burst across a minute boundary can reach 20). The integration test starts in a fresh server minute (Mayan's `Date` header), checks that all 11 answers fall into that minute, and checks the next minute's reset; a second test runs the real limiter with a fixed clock around the boundary. | The previous test failed whenever its 11 sign-ins crossed a minute boundary. |
+| `turbopack.root` and `outputFileTracingRoot` are pinned to the portal folder; ESLint ignores `.next` at any depth. | With a lockfile in a parent folder Next.js chose another project root; a build with a cache from the other root wrote generated files to `portal/portal/.next`. |

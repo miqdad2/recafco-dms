@@ -510,25 +510,150 @@ passed when its file was run alone. The limiter counts per calendar minute
 (`window_start` = current minute), so the test's 11 sign-ins fail it
 whenever they cross a minute boundary. This happened more often here
 because each sign-in took 0.7–2 s on the busy machine. Search, lists and
-sign-in code are separate, and the test was not changed. The new tests and
-08, 09 and 12 together passed 36/36 in a separate run.
+sign-in code are separate, and the test was not changed at that point (it
+is fixed in the release checkpoint below). The new tests and 08, 09 and 12
+together passed 36/36 in a separate run.
+
+## Release checkpoint (2026-11-12)
+
+### Deletion and the search-index backlog
+
+**Diagnosis.** While a document is deleted, Mayan's search handlers
+(`dynamic_search/handlers.py`) queue a re-index of the *parent* of every
+deleted part at once, inside the deletion transaction: the document for
+each file, file page, version, version page, metadata entry and the like,
+and the file for each of its pages and related records. After the deletion
+commits, those parents no longer exist. Mayan's `task_index_instance`
+answers "does not exist" with a retry (up to 40, back-off up to 60 s),
+because an object may simply not be committed yet. For a deleted object,
+every retry is wasted.
+
+**Distinct tasks vs retries** (`scripts/loadtest/watch-index-tasks.mjs`
+reads the dev queue and the tasks workers hold; a Celery task keeps its ID
+across retries and carries its retry number). 20 one-page documents,
+deleted through the administrators' path (recycle bin, then permanent
+deletion), watched for 15 minutes, committed dev profile:
+
+| | Before the fix | After the fix |
+| --- | --- | --- |
+| Distinct index tasks for the deleted objects | 780 (~39 per document: 422 for documents, 325 for files, 20 file pages, 20 version pages, 21 versions, 5 metadata) | same tasks are queued; the watcher's first sample caught 361, the rest had already finished |
+| Attempts (first run + retries) seen in 15 min | 5,252 | 361 (each ran once) |
+| Highest retry number seen | 6 of 40 (a single search worker process goes round all ~800 tasks per retry) | 0 |
+| Index tasks still queued or held at the end | 812 (780 for deleted objects; 33 for existing objects, see note) | 0, from 17 s after the deletion |
+| Targets that no longer exist | 780 of 780 for the deleted documents | 361 of 361 |
+
+So the 11,195 tasks seen earlier for 280 deleted documents were about 40
+**distinct** tasks per document (280 × 40), each in its retry cycle, not a
+few tasks retried thousands of times. The 33 tasks for existing objects
+were genuine retries for documents that existed, held by worker processes
+I had restarted; Celery hands such tasks back after its 1-hour visibility
+timeout.
+
+**Fix** (extension only; Mayan's code unchanged): `search_cleanup.py` and
+migration `0009_deletedobject`.
+- A post-delete receiver writes a tombstone for each deleted document,
+  file, file page, version, version page and metadata entry, in the same
+  transaction as the deletion. A rolled-back deletion leaves none.
+  Tombstones are removed after a day.
+- Mayan's task is wrapped with Celery's own `Task.add_around('run', …)` when
+  the Celery app is finalized. If the target is missing **and** has a
+  tombstone, the task ends without retrying. Every other case runs Mayan's
+  task unchanged.
+
+Checked with `recafco_dev index-task-check`, which runs the task
+synchronously:
+- a deleted document ends at once (SUCCESS, tombstone present);
+- an ID that never existed is still retried (RETRY on `DoesNotExist`);
+- an existing document is indexed normally.
+
+**Deletion leaves nothing reachable** (new test `13-permanent-deletion`,
+plus the existing purge test in `11-admin-control`):
+- record, file download and page preview are refused through Mayan and
+  through the portal;
+- neither the title nor a word that occurs only inside the file is found:
+  not by the portal search, not by Mayan's search API, and not in the
+  search index itself (raw index lookup);
+- no index task for the deleted objects stays queued or held.
+
+In the dev experiments, the raw index held no entry for either batch of
+deleted documents.
+
+### Sign-in limit test
+
+The limit is unchanged: 10 sign-in requests per username per calendar
+minute of Mayan's clock. Fixed windows: 10 just before and 10 just after a
+minute boundary all pass. The test in `09-local-accounts` now:
+- waits for a fresh server minute, read from Mayan's `Date` header, so the
+  sign-in made while creating the account is not counted;
+- requires all 11 answers to carry the same server minute (a precondition
+  with its own message, not a retry);
+- expects the first 10 to pass and the 11th to be refused with
+  `Retry-After` between 1 and 60;
+- checks that the next minute admits the user again.
+
+A second test runs the real limiter with a fixed clock: 10 in a minute,
+the 11th at :59.999 refused with a 1 s wait, :00.000 of the next minute
+allowed, and a 10 + 10 burst across a boundary allowed with the 11th
+refused. No assertion was weakened; the first test now checks all 10
+successes (before: 9).
+
+### Generated build directory
+
+`portal/portal/.next` contained only Turbopack output: 11 files (loader
+chunks, their source maps and a `package.json` with `{"type": "commonjs"}`),
+all written at 08:20:21 on 2026-11-12 by the first build after the root
+`package-lock.json` was removed the day before. Next.js infers its project
+root from the nearest lockfile, so the root changed between two builds that
+shared a cache. Writing to `portal/portal` fits that, but the cause could
+not be reproduced. The files were deleted one by one, then the emptied
+folders. The fix does not depend on the cause:
+- `turbopack.root` and `outputFileTracingRoot` are pinned to the portal
+  folder;
+- ESLint ignores `.next` at any depth;
+- Git already ignored `.next/` at any depth.
+
+A later build wrote only to `portal/.next`, and the standard `npm run lint`
+is clean.
+
+### Final verification
+
+Standard commands in `portal/`, on the final code:
+- `npm run typecheck`, `npm run lint` (whole project) and `npm run build`:
+  clean;
+- `npm run test:unit`: 13/13;
+- `npm run test:integration`: the complete suite on the separate test stack
+  (fresh database, migration 0009 applied), **228/228 passed in 13 files**,
+  in one run with no reruns (1,146 s). That includes:
+  - the rewritten sign-in limit test (63 s, mostly waiting for minute
+    boundaries) and the fixed-clock boundary test;
+  - the four new permanent-deletion tests;
+  - 12 (search and lists) and all earlier files.
+
+No test failed.
 
 ### Remaining deployment constraints
 
-- Nothing is deployed. The extension change needs Mayan's app processes on
-  the server to restart (after approval), and the portal needs a rebuild.
-  No migration is needed (no model changes).
+- Nothing is deployed. On the server, after approval:
+  - run migration `0009_deletedobject` (`migrate recafco_dms`; additive,
+    one new table);
+  - restart Mayan's app processes, so web and Celery workers load the
+    extension (both the search endpoint and the deletion fix);
+  - rebuild the portal.
 - Worker counts, worker recycling (`MAYAN_GUNICORN_MAX_REQUESTS`) and memory
   limits are **not** approved production configuration. The measured
   simultaneous-recycling stall and memory ceiling still apply to any
   server running the defaults; they need measurement on the server.
 - OCR policy is unchanged. Skipping OCR for text PDFs needs an evaluation
   of search completeness with real text-only and mixed scanned/text PDFs.
-- Permanent deletion has a processing cost: deleting one document queued
-  ~20 index tasks (document, files, versions, pages), and Mayan retries each
-  task for a deleted object up to 40 times with back-off up to 60 s (~35
-  minutes). Measured: 280 deleted documents left 11,195 queued tasks. Expect
-  extra search-worker CPU after large purges from the recycle bin.
+- Deletion still queues Mayan's ~39 index tasks per document; they now
+  end on their first run. A large purge still causes one short burst of
+  search-worker work.
+- The fix relies on Celery's `add_around` and on Mayan's task name and
+  argument names (`app_label`, `model_name`, `object_id`). A Mayan upgrade
+  must re-run `13-permanent-deletion`. The test fails if the task is no
+  longer wrapped.
+- Deletions that bypass Django's post-delete signal (raw SQL) get no
+  tombstone. Their tasks are retried as before.
 - Search time is now mostly Mayan's Whoosh lookup. Larger document volumes
   should be measured before deciding whether a different search backend
   (Mayan supports Elasticsearch) is needed.
