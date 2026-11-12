@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { NextConfig } from 'next';
 
 // Every page is per-employee and rendered on request (`dynamic =
@@ -28,9 +29,17 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
 ];
 
+// The portal folder is the project root. Next.js otherwise infers the root
+// from the nearest lockfile; a lockfile in a parent folder (the repository
+// once had an empty one) moves the root, and a build with a cache from the
+// other root wrote generated files to portal/portal/.next. Pin both roots.
+const projectRoot = path.resolve(__dirname);
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  outputFileTracingRoot: projectRoot,
   turbopack: {
+    root: projectRoot,
     rules: {
       '*.css': {
         loaders: ['@tailwindcss/turbopack'],
